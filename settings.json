@@ -1,0 +1,58 @@
+{
+    "logging": {
+        "log_level": 2,
+        "_comment": "log_level: 0=errors only, 1=errors and progress, 2=errors, progress and debug"
+    },
+
+    "citations_csv": {
+        "array_separator": "|"
+    },
+
+    "markdown": {
+        "directory": "output",
+        "update_for_links": true,
+        "_comment": "output_dir: directory to save the markdown file"
+    },
+
+    "bibliography": {
+        "directory": "output",
+        "make_hayagriva": true,
+        "make_bibtex": true
+    },
+
+    "network": {
+        "timeout": 3,
+        "num_retries": 3,
+        "retry_delay": 2,
+        "_comment": "timeout: timeout for requests in seconds | num_retries: number of retries | retry_delay: delay between retries in seconds"
+    },
+
+    "polite_api": {
+        "project_name": null,
+        "project_version": null,
+        "project_url": null,
+        "contact_email": null,
+        "_comment": "provide your project details if you would like to use the CrossRef polite api (slightly faster), or if you plan to make frequent use of the OpenLibrary api. See links for details: https://www.crossref.org/documentation/retrieve-metadata/rest-api/tips-for-using-the-crossref-rest-api/ and "
+    },
+
+    "advanced": {
+        "_comment": "Advanced settings. Only change if you know what you are doing.",
+        "api": {
+            "crossref": {
+                "url": "https://api.crossref.org/works/",
+                "_example": "https://api.crossref.org/works/10.1126/science.359.6377.725",
+                "_comment": "The URL for the Crossref API. Can append DOI. Not used in script, crossref.restful used instead."
+            },
+            "openlibrary": {
+                "url": "https://openlibrary.org/search.json?q=isbn:",
+                "_example": "https://openlibrary.org/search.json?q=isbn:9780134092669",
+                "_comment": "The URL for the Open Library API. Can append ISBN. Read more at https://openlibrary.org/developers/api."
+            },
+            "googlebooks": {
+                "url": "https://www.googleapis.com/books/v1/volumes?q=isbn:",
+                "_example": "https://www.googleapis.com/books/v1/volumes?q=isbn:9780134092669",
+                "_comment": "The URL for the Google Books API. Can append ISBN."
+            }
+        }
+    }
+}

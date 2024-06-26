@@ -1,0 +1,11 @@
+# vscode
+.vscode
+
+# Exclude macOS Finder (System Explorer) View States
+.DS_Store
+
+# Exclude python cache
+__pycache__
+
+# _unittests.py
+test.py
