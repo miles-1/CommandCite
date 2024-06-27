@@ -36,3 +36,45 @@ class Log:
             print(f"> DEBUG: {message}")
 
 logger = Log()
+
+# aux functions
+
+def smart_title_case(string):
+    # TODO
+    pass
+
+def isbn_formatting(isbn):
+    # TODO
+    pass
+
+def get_code_suffix_from_int(int):
+    # TODO
+    pass
+
+def get_int_from_code_suffix(suffix):
+    # TODO
+    pass
+
+def getDataByAddress(data, path):
+    # TODO
+    NA = "N/A"
+    path_options = path.split("|")
+    for option in path_options:
+        option_parts = option.split("/")
+        value = data
+        for part in option_parts:
+            if value == NA:
+                break
+            elif value == []:
+                value = NA
+                break
+            elif part.isdigit():
+                if len(value) > int(part):
+                    value = value[int(part)]
+                else:
+                    value = NA
+            else:
+                value = value.get(part, NA)
+        if value != NA:
+            return value
+    return value

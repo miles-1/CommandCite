@@ -1,23 +1,52 @@
 {
     "logging": {
         "log_level": 2,
-        "_comment": "log_level: 0=errors only, 1=errors and progress, 2=errors, progress and debug"
+        "progress_indent": 2,
+        "_comment": "log_level: 0=errors only, 1=errors and progress, 2=errors, progress and debug | progress_indent: indent used for progress messages"
     },
 
     "citations_csv": {
-        "array_separator": "|"
+        "directory": ".",
+        "filename": "citations",
+        "missing_data_string": "N/A",
+        "array_separator": "|",
+        "first_last_separator": "+",
+        "_comment": "directory: directory of the citation csv | filename: filename of the citation csv | missing_data_string: string to use for missing data | array_separator: separator for arrays in the csv | first_last_separator: separator for first and last names in author fields"
     },
 
     "markdown": {
-        "directory": "output",
-        "update_for_links": true,
-        "_comment": "output_dir: directory to save the markdown file"
+        "directory": "md/",
+        "link_cited": true,
+        "delete_unmatched_entries": true,
+        "automate_pdf_link": {
+            "doi": true,
+            "isbn": true
+        },
+        "included_properties": [
+            "title",
+            "author",
+            "year",
+            "doi",
+            "isbn",
+            "url",
+            "abstract",
+            "cited",
+            "tags"
+        ],
+        "user_defined_properties": {
+            "physical_copy": false,
+            "processed": false
+        },
+        "_comment": "directory: directory to save markdown files | link_cited: whether to link a paper's md to the mds of cited papers in your citation csv, if they are present, in a `cited` property | delete_unmatched_entries: whether to delete entries in the markdown directory that are not cited in the citation csv | automate_pdf_link: whether to automatically add a link to the pdf of the paper in the md | included_properties: properties to include in the markdown file, must match name of attributes in csv (note when data is missing the property will be omitted entirely) | user_defined_properties: user-defined properties to include in the md"
     },
 
     "bibliography": {
-        "directory": "output",
+        "directory": ".",
+        "filename": "citations",
         "make_hayagriva": true,
-        "make_bibtex": true
+        "make_bibtex": true,
+        "delete_unmatched_entries": true,
+        "_comment": "directory: directory to save bibliography files | make_hayagriva: whether to make a Hayagriva bibliography file | make_bibtex: whether to make a BibTeX bibliography file | delete_unmatched_entries: whether to delete entries in the bibliography that are not cited in the citation csv"
     },
 
     "network": {
@@ -53,6 +82,57 @@
                 "_example": "https://www.googleapis.com/books/v1/volumes?q=isbn:9780134092669",
                 "_comment": "The URL for the Google Books API. Can append ISBN."
             }
+        },
+        "file_encoding": {
+            "open_encoding": "utf-8-sig",
+            "close_encoding": "utf-8",
+            "_comment": "open_encoding: encoding to open files with | close_encoding: encoding to save files with"
+        },
+        "csv_headers": {
+            "all_headers": [
+                "citation-code",
+                "title",
+                "author",
+                "year",
+                "month",
+                "journal",
+                "abbreviated-journal",
+                "publisher",
+                "page",
+                "volume",
+                "number",
+                "doi",
+                "isbn",
+                "url",
+                "cited-by-count",
+                "type",
+                "abstract",
+                "cited-dois"
+            ],
+            "crossref": {
+                "_root": "message",
+                "title": "title/0",
+                "author": "author/*/[family,given]",
+                "year": "published-print/date-parts/0/0|published-online/date-parts/0/0",
+                "month": "published-print/date-parts/0/1|published-online/date-parts/0/1",
+                "journal": "container-title/0",
+                "abbreviated-journal": "short-container-title/0",
+                "publisher": "publisher",
+                "page": "page",
+                "volume": "volume",
+                "number": "number",
+                "doi": "DOI",
+                "url": "resource/primary/URL",
+                "cited-by-count": "is-referenced-by-count",
+                "type": "type",
+                "abstract": "abstract",
+                "cited-dois": "refereence/*/DOI"
+            },
+            "openlibrary": {
+            },
+            "googlebooks": {
+            },
+            "_comment": "headers for the csv file overall and by api, with paths to find data in json response from each api. If the header is missing for the api, or data is not found in response, the property will be set to the missing_data_string in settings.json. | indicate alternate paths to try in order, Integers in path represent the index of the array element to access, * represents creating a list of the items found at the rest of the path across an array, and [] are for concatenation of two items in an object (only used for authors). The `_root` key is used to specify the root of the json response for all other paths to be evaluated by. If the root is not specified, the root is assumed to be the json response itself."
         }
     }
 }
