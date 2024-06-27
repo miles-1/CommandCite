@@ -97,7 +97,7 @@ def get_code_suffix_from_int(num):
 def get_int_from_code_suffix(suffix):
     number = 0
     for i, char in enumerate(reversed(suffix)):
-        number += (ord(char) - ord('A') + 1) * (26 ** i)
+        number += (ord(char) - ord("a") + 1) * (26 ** i)
     return number
 
 def getDataByAddress(data, path):

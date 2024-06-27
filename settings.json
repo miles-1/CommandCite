@@ -8,17 +8,20 @@
     "citations_csv": {
         "directory": ".",
         "filename": "citations",
-        "missing_data_string": "N/A",
+        "missing_data_string": "NA",
         "array_separator": "|",
         "first_last_separator": "+",
         "title_case_titles": true,
-        "_comment": "directory: directory of the citation csv | filename: filename of the citation csv | missing_data_string: string to use for missing data | array_separator: separator for arrays in the csv | first_last_separator: separator for first and last names in author fields | title_case_titles: whether to put all titles in title case"
+        "update_blanks_automatically": true,
+        "citation-code_format": "<firstauthor.family>_<year>",
+        "_comment": "directory: directory of the citation csv | filename: filename of the citation csv | missing_data_string: string to use for missing data | array_separator: separator for arrays in the csv | first_last_separator: separator for first and last names in author fields | title_case_titles: whether to put all titles in title case | update_blanks_automatically: whether all blanks in the .csv document (i.e., nothing in the cell, no `missing_data_string`) should be automatically updated whenever the program is used. If `false`, the `--update` tag has to be used to fill in these blanks | citation_code_format: format for citation codes, using fields from the csv in angle brackets. Besides <firstauthor.family> and <firstauthor.given>, all fields found in the csv can be used in the `citation-code`, specified with angle brackets. Unaccepted characters in citation codes are replaced with underscores, and citation codes are made unique by automatically adding a suffix to the end."
     },
 
     "markdown": {
+        "make_md": true,
         "directory": "md/",
         "link_cited": true,
-        "delete_unmatched_entries": true,
+        "delete_unmatched_citations": true,
         "automate_pdf_link": {
             "doi": true,
             "isbn": true
@@ -33,11 +36,11 @@
             "type",
             "abstract"
         ],
-        "user_defined_properties": {
+        "user-defined_properties": {
             "physical_copy": false,
             "processed": false
         },
-        "_comment": "directory: directory to save markdown files | link_cited: whether to link a paper's md to the mds of cited papers in your citation csv, if they are present, in a `cited` property | delete_unmatched_entries: whether to delete entries in the markdown directory that are not cited in the citation csv | automate_pdf_link: whether to automatically add a link to the pdf of the paper in the md | included_properties: properties to include in the markdown file, must match name of attributes in csv (note when data is missing the property will be omitted entirely) | user_defined_properties: user-defined properties to include in the md"
+        "_comment": "directory: directory to save markdown files | link_cited: whether to link a paper's md to the mds of cited papers in your citation csv, if they are present, in a `cited` property in the md | delete_unmatched_citations: whether to delete files in the markdown directory with names (citation codes) that are not cited in the citation csv | automate_pdf_link: whether to automatically add a link to the pdf of the paper in the md | included_properties: properties to include in the markdown file, must match name of attributes in csv (note when data is missing the property will be omitted entirely) | user-defined_properties: user-defined properties to include in the md with their default values. Can be used to add custom properties to the md, or to force the inclusion of properties when their respective entries have no data in the csv"
     },
 
     "bibliography": {
@@ -54,6 +57,12 @@
         "num_retries": 3,
         "retry_delay": 2,
         "_comment": "timeout: timeout for requests in seconds | num_retries: number of retries | retry_delay: delay between retries in seconds"
+    },
+
+    "api_preference": {
+        "primary_isbn": "openlibrary",
+        "secondary_isbn": "googlebooks",
+        "_comment": "primary_isbn: preferred api for isbn lookup | secondary_isbn: secondary api for isbn lookup if primary fails, null if no secondary api is desired"
     },
 
     "polite_api": {
@@ -95,6 +104,7 @@
                 "author",
                 "year",
                 "month",
+                "day",
                 "journal",
                 "abbreviated-journal",
                 "publisher",
@@ -111,27 +121,47 @@
             ],
             "crossref": {
                 "/": "message",
-                "title": "title/0",
-                "author": "author/*/[family,given]",
-                "year": "published-print/date-parts/0/0|published-online/date-parts/0/0",
-                "month": "published-print/date-parts/0/1|published-online/date-parts/0/1",
-                "journal": "container-title/0",
-                "abbreviated-journal": "short-container-title/0",
+                "title": "title.0@",
+                "author": "author.*.[family,given]",
+                "year": "published-print.date-parts.0@|published-online.date-parts.0@",
+                "month": "published-print.date-parts.0@|published-online.date-parts.0@",
+                "day": "published-print.date-parts.0@|published-online.date-parts.0@",
+                "journal": "container-title.0",
+                "abbreviated-journal": "short-container-title.0",
                 "page": "page",
                 "volume": "volume",
                 "number": "number",
                 "doi": "DOI",
-                "url": "resource/primary/URL",
+                "url": "resource.primary.URL",
                 "cited-by-count": "is-referenced-by-count",
                 "type": "type",
                 "abstract": "abstract",
-                "cited-dois": "refereence/*/DOI"
+                "cited-dois": "refereence.*.DOI"
             },
             "openlibrary": {
+                "/": "docs.0",
+                "title": "title@",
+                "author": "author_name@",
+                "year": "publish_date.0@|publish_year.0",
+                "month": "publish_date.0@",
+                "day": "publish_date.0@",
+                "publisher": "publisher.0",
+                "isbn": "isbn@",
+                "type": "type@"
             },
             "googlebooks": {
+                "/": "items.0",
+                "title": "volumeInfo.title@",
+                "author": "volumeInfo.authors@",
+                "year": "volumeInfo.publishedDate@",
+                "month": "volumeInfo.publishedDate@",
+                "day": "volumeInfo.publishedDate@",
+                "publisher": "volumeInfo.publisher",
+                "isbn": "volumeInfo.industryIdentifiers@",
+                "url": "volumeInfo.canonicalVolumeLink",
+                "type": "kind@"
             },
-            "_comment": "headers for the csv file overall and by api, with paths to find data in json response from each api. If the header is missing for the api, or data is not found in response, the property will be set to the missing_data_string in settings.json. | indicate alternate paths to try in order, Integers in path represent the index of the array element to access, * represents creating a list of the items found at the rest of the path across an array, and [] are for concatenation of two items in an object (only used for authors). The `/` key is used to specify the root of the json response for all other paths to be evaluated by. If the root is not specified, the root is assumed to be the json response itself."
+            "_comment": "headers for the csv file overall and by api, with addresses to find data in json response from each api. If the header is missing for the api, or data is not found in response, the property will be set to the missing_data_string in settings.json. | indicate alternate addresses to try in order, Integers in address represent the index of the array element to access, * represents creating a list of the items found at the rest of the address across an array, [] is for concatenation in crossref authors, @ is to flag for special processing by the Works classes. The `/` key is used to specify the root of the json response for all other addresses to be evaluated by. If the root is not specified, the root is assumed to be the json response itself."
         }
     }
 }
