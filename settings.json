@@ -11,7 +11,8 @@
         "missing_data_string": "N/A",
         "array_separator": "|",
         "first_last_separator": "+",
-        "_comment": "directory: directory of the citation csv | filename: filename of the citation csv | missing_data_string: string to use for missing data | array_separator: separator for arrays in the csv | first_last_separator: separator for first and last names in author fields"
+        "title_case_titles": true,
+        "_comment": "directory: directory of the citation csv | filename: filename of the citation csv | missing_data_string: string to use for missing data | array_separator: separator for arrays in the csv | first_last_separator: separator for first and last names in author fields | title_case_titles: whether to put all titles in title case"
     },
 
     "markdown": {
@@ -26,12 +27,11 @@
             "title",
             "author",
             "year",
-            "doi",
-            "isbn",
+            "journal",
+            "publisher",
             "url",
-            "abstract",
-            "cited",
-            "tags"
+            "type",
+            "abstract"
         ],
         "user_defined_properties": {
             "physical_copy": false,
@@ -110,14 +110,13 @@
                 "cited-dois"
             ],
             "crossref": {
-                "_root": "message",
+                "/": "message",
                 "title": "title/0",
                 "author": "author/*/[family,given]",
                 "year": "published-print/date-parts/0/0|published-online/date-parts/0/0",
                 "month": "published-print/date-parts/0/1|published-online/date-parts/0/1",
                 "journal": "container-title/0",
                 "abbreviated-journal": "short-container-title/0",
-                "publisher": "publisher",
                 "page": "page",
                 "volume": "volume",
                 "number": "number",
@@ -132,7 +131,7 @@
             },
             "googlebooks": {
             },
-            "_comment": "headers for the csv file overall and by api, with paths to find data in json response from each api. If the header is missing for the api, or data is not found in response, the property will be set to the missing_data_string in settings.json. | indicate alternate paths to try in order, Integers in path represent the index of the array element to access, * represents creating a list of the items found at the rest of the path across an array, and [] are for concatenation of two items in an object (only used for authors). The `_root` key is used to specify the root of the json response for all other paths to be evaluated by. If the root is not specified, the root is assumed to be the json response itself."
+            "_comment": "headers for the csv file overall and by api, with paths to find data in json response from each api. If the header is missing for the api, or data is not found in response, the property will be set to the missing_data_string in settings.json. | indicate alternate paths to try in order, Integers in path represent the index of the array element to access, * represents creating a list of the items found at the rest of the path across an array, and [] are for concatenation of two items in an object (only used for authors). The `/` key is used to specify the root of the json response for all other paths to be evaluated by. If the root is not specified, the root is assumed to be the json response itself."
         }
     }
 }

@@ -40,20 +40,65 @@ logger = Log()
 # aux functions
 
 def smart_title_case(string):
-    # TODO
-    pass
+    lower_words = [
+        "a",
+        "an",
+        "and",
+        "as",
+        "at",
+        "but",
+        "by",
+        "for",
+        "from",
+        "if",
+        "in",
+        "into",
+        "like",
+        "near",
+        "nor",
+        "of",
+        "off",
+        "on",
+        "once",
+        "onto",
+        "or",
+        "so",
+        "than",
+        "that",
+        "the",
+        "to",
+        "when",
+        "with",
+        "yet",
+    ]
+    words = string.split(" ")
+    for i in range(len(words)):
+        if i == 0 or i == len(words) - 1 or words[i] not in lower_words:
+            words[i] = words[i].capitalize()
+    return " ".join(words)
 
 def isbn_formatting(isbn):
-    # TODO
-    pass
+    isbn = isbn.replace("-", "").replace(" ", "").lower()
+    if isbn.startswith("isbn"):
+        isbn = isbn[4:]
+        if isbn.startswith(":"):
+            isbn = isbn[1:]
+    return isbn
 
-def get_code_suffix_from_int(int):
-    # TODO
-    pass
+def get_code_suffix_from_int(num):
+    suffix = ""
+    while num > 0:
+        num -= 1
+        remainder = num % 26
+        suffix = chr(remainder + ord("a")) + suffix
+        num = num // 26
+    return suffix
 
 def get_int_from_code_suffix(suffix):
-    # TODO
-    pass
+    number = 0
+    for i, char in enumerate(reversed(suffix)):
+        number += (ord(char) - ord('A') + 1) * (26 ** i)
+    return number
 
 def getDataByAddress(data, path):
     # TODO
