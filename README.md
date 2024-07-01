@@ -1,6 +1,8 @@
 # Citation Manager
 
-A command line tool that takes DOIs and ISBNs to query databases for citation details. Currently, this program uses [Crossref](https://www.crossref.org/documentation/) for DOI citations and [OpenLibrary](https://openlibrary.org/developers)/[GoogleBooks](https://developers.google.com/books/docs/overview) for ISBN citations. With information collected by these sources, a `.csv` database is created, which the user can edit if desired. In addition to this this program can create the following:
+## Description
+
+A command line tool that takes DOIs and ISBNs to query databases for citation details. Currently, this program uses [Crossref](https://www.crossref.org/documentation/) for DOI citations and [OpenLibrary](https://openlibrary.org/developers)/[GoogleBooks](https://developers.google.com/books/docs/overview) for ISBN citations. With information collected by these sources, a `.csv` database is created, which the user can edit if desired. In addition to this document, this program can create and manage the following:
  - Markdown (`.md`) files for each entry for notes, compatible with [Obsidian](https://www.obsidian.md)
     - Can create link between cited articles to create citation graphs
  - A citation file, either:
@@ -30,19 +32,25 @@ cite --isbn 9780134092669
 
 To set a specific `citation-code` for a document, run:
 ```bash
-cite 10.1126/science.359.6377.725 --setcode Johnson_2015
+cite 10.1126/science.359.6377.725 --setcode Hutson_2018
 ```
 
 To change the `citation-code` for an existing document, run:
 ```bash
-cite --rename Johnson_2009a Johnson_2010 
-# note that no suffix is included for the replacement code
+cite --rename Hutson_2018a AI_reproducibility_Hutson
+# note that no suffix is included for the replacement code since it will be auto-generated
 ```
 
 If you change the contents of the `.csv` file and want to update the other files managed by this program, run:
 ```bash
 cite --update Johnson_2009a # to update documents for a specific document, or
 cite --update-all # to update across all citations
+```
+
+If you have enabled markdown or bibliography generation, you can exclude specific citations from markdown generation or inclusion in a bibliography:
+```bash
+cite 10.1126/science.359.6377.725 --nomd # skips .md creation
+cite 10.1126/science.359.6377.725 --nobib # skips inclusion in bibliography file
 ```
 
 ## Settings
