@@ -79,17 +79,17 @@
             "crossref": {
                 "url": "https://api.crossref.org/works/",
                 "_example": "https://api.crossref.org/works/10.1126/science.359.6377.725",
-                "_comment": "The URL for the Crossref API. Can append DOI. Not used in script, crossref.restful used instead."
+                "_comment": "The URL for the Crossref api. Can append DOI. Not used in script, crossref.restful used instead."
             },
             "openlibrary": {
                 "url": "https://openlibrary.org/search.json?q=isbn:",
                 "_example": "https://openlibrary.org/search.json?q=isbn:9780134092669",
-                "_comment": "The URL for the Open Library API. Can append ISBN. Read more at https://openlibrary.org/developers/api."
+                "_comment": "The URL for the Open Library api. Can append ISBN. Read more at https://openlibrary.org/developers/api."
             },
             "googlebooks": {
                 "url": "https://www.googleapis.com/books/v1/volumes?q=isbn:",
                 "_example": "https://www.googleapis.com/books/v1/volumes?q=isbn:9780134092669",
-                "_comment": "The URL for the Google Books API. Can append ISBN."
+                "_comment": "The URL for the Google Books api. Can append ISBN."
             }
         },
         "file_encoding": {
@@ -98,12 +98,6 @@
             "_comment": "open_encoding: encoding to open files with | close_encoding: encoding to save files with"
         },
         "csv_headers": {
-            "program_headers": [
-                "citation-code",
-                "make-md",
-                "make-bib",
-                "add-date"
-            ],
             "info_headers": [
                 "title",
                 "author",
@@ -115,7 +109,7 @@
                 "publisher",
                 "page",
                 "volume",
-                "number",
+                "issue",
                 "doi",
                 "isbn",
                 "url",
@@ -135,7 +129,7 @@
                 "abbreviated-journal": "short-container-title.0",
                 "page": "page",
                 "volume": "volume",
-                "number": "number",
+                "issue": "issue",
                 "doi": "DOI",
                 "url": "resource.primary.URL",
                 "cited-by-count": "is-referenced-by-count",
@@ -166,7 +160,7 @@
                 "url": "volumeInfo.canonicalVolumeLink",
                 "type": "kind@"
             },
-            "_comment": "headers for the csv file overall and by api, with addresses to find data in json response from each api. If the header is missing for the api, or data is not found in response, the property will be set to the missing_data_string in settings.json. | indicate alternate addresses to try in order, Integers in address represent the index of the array element to access, * represents creating a list of the items found at the rest of the address across an array, [] is for concatenation in crossref authors, @ is to flag for special processing by the Works classes. The `/` key is used to specify the root of the json response for all other addresses to be evaluated by. If the root is not specified, the root is assumed to be the json response itself. `program_headers` are headers directly managed by this program, while `info_headers` are headers with data collected from the apis or edited by users."
+            "_comment": "headers for the csv file overall and by api, with addresses to find data in json response from each api. If the header is missing for the api, or data is not found in response, the property will be set to the missing_data_string in settings.json. | indicate alternate addresses to try in order, Integers in address represent the index of the array element to access, * represents creating a list of the items found at the rest of the address across an array, [] is for concatenation of multiple fields (only used in crossref authors), @ is to flag for special processing by the Works classes in api.py. The `/` key is used to specify the root of the json response for all other addresses to be evaluated by. If the root is not specified, the root is assumed to be the json response itself. `info_headers` are headers with data collected from the apis or edited by users. Others are added and managed by the program (specifically, those found in _GenWorks._set_citation_code of api.py)."
         }
     }
 }

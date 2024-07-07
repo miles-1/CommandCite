@@ -7,7 +7,6 @@ with open("settings.json") as settings_file:
     settings = json.load(settings_file)
 
 # logger
-
 class Log:
     def __init__(self):
         self.log_level = settings["logging"]["log_level"]
@@ -37,9 +36,19 @@ class Log:
 
 logger = Log()
 
+logger.debug("Beginning to load settings from settings.json for aux.py")
+try:
+    missing_data_string = settings["citations_csv"]["missing_data_string"]
+    array_separator = settings["citations_csv"]["array_separator"]
+    first_last_separator = settings["citations_csv"]["first_last_separator"]
+except KeyError as e:
+    logger.error(e, "settings.json file is missing required keys")
+logger.debug("Finished loading settings from settings.json for aux.py")
+
 # aux functions
 
 def smart_title_case(string):
+    """Gives title case for string besides ignored words"""
     lower_words = [
         "a",
         "an",
@@ -78,6 +87,7 @@ def smart_title_case(string):
     return " ".join(words)
 
 def isbn_formatting(isbn):
+    """Formats ISBNs to remove common delimiters and reduce to numbers"""
     isbn = isbn.replace("-", "").replace(" ", "").lower()
     if isbn.startswith("isbn"):
         isbn = isbn[4:]
@@ -86,6 +96,10 @@ def isbn_formatting(isbn):
     return isbn
 
 def get_code_suffix_from_int(num):
+    """
+    Converts number (integer) to letter suffix. 
+    1 gives a, 2 gives b, ... 26 gives z, 27 gives aa, ...
+    """
     suffix = ""
     while num > 0:
         num -= 1
@@ -95,31 +109,52 @@ def get_code_suffix_from_int(num):
     return suffix
 
 def get_int_from_code_suffix(suffix):
+    """Reverse operation of get_code_suffix_from_int"""
     number = 0
     for i, char in enumerate(reversed(suffix)):
         number += (ord(char) - ord("a") + 1) * (26 ** i)
     return number
 
-def getDataByAddress(data, path):
-    # TODO
-    NA = "N/A"
-    path_options = path.split("|")
-    for option in path_options:
-        option_parts = option.split("/")
-        value = data
-        for part in option_parts:
-            if value == NA:
+def get_data_by_address(data, address):
+    """Return the location at a given address, or missing_data_string if missing."""
+    address_options = address.split("|")
+    for address in address_options:
+        if needs_processing := address.endswith("@"):
+            address = address[:-1]
+        data_chunk = data
+        address_parts = address.split(".")
+        for part_indx, part in enumerate(address_parts):
+            # handle missing data
+            if data_chunk == []:
+                data_chunk = missing_data_string
                 break
-            elif value == []:
-                value = NA
-                break
+            # handle integer address part
             elif part.isdigit():
-                if len(value) > int(part):
-                    value = value[int(part)]
+                if isinstance(data_chunk, list) and len(data_chunk) > int(part):
+                    data_chunk = data_chunk[int(part)]
                 else:
-                    value = NA
+                    logger.error("Misuse of Integer in Response Address", f"An integer in api addresses should only be used when the preceeding address fragment gives a list. Instead, the preceeding address fragment gave a {type(data_chunk)}.")
+            # handle * address part
+            elif part == "*":
+                if isinstance(data_chunk, list):
+                    new_path = ".".join(address_parts[part_indx+1:])
+                    data_chunk = array_separator.join(get_data_by_address(d, new_path)[1] for d in data_chunk)
+                else:
+                    logger.error("Misuse of * in Response Address", f"The * symbol in api addresses should only be used when the preceeding address fragment gives a list. Instead, the preceeding address fragment gave a {type(data_chunk)}.")
+            # handle [] address part
+            elif part.startswith("[") and part.endswith("]"):
+                remaining_address = "." + address_parts[part_indx+1:] if len(address_parts) > part_indx + 1 else "" # not tested
+                parts = [p + remaining_address for p in part[1:-1].split(",")]
+                data_chunk = first_last_separator.join(get_data_by_address(data_chunk, p)[1] for p in parts)
+                break
+            # handle dictionary keys
             else:
-                value = value.get(part, NA)
-        if value != NA:
-            return value
-    return value
+                if part in data_chunk:
+                    data_chunk = data_chunk[part]
+                else:
+                    logger.error("Missing Key in api Response", f"The response data is missing the key {part} when it was asked for")
+        # if current address option is not returning missing data, return that data
+        if data_chunk != missing_data_string:
+            return needs_processing, data_chunk
+    # if all address options returned missing data
+    return needs_processing, missing_data_string
