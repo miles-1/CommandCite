@@ -8,4 +8,9 @@ from os.path import exists, join, dirname
 import traceback, sys
 import csv, yaml
 import re
- 
+
+
+try:
+    pass
+except Exception as e:
+    logger.error(e, "unexpected error encountered")

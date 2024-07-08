@@ -4,6 +4,7 @@ import csv
 
 class CSV:
     def __init__(self):
+        logger.debug("Creating new CSV object")
         self.file_name = csv_file_name
         if not exists(dirname(self.file_name)):
             logger.error("Bad CSV Path", "The directory specified in `citations_csv` of settings.json does not exist")
@@ -20,3 +21,10 @@ class CSV:
         # TODO
         pass
 
+    def update_entry(self, citation_code):
+        # TODO
+        pass
+
+    def change_citation_code(self, current_code, new_code):
+        # TODO
+        pass

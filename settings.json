@@ -2,7 +2,8 @@
     "logging": {
         "log_level": 1,
         "progress_indent": 2,
-        "_comment": "log_level: 0=errors only, 1=errors and progress, 2=errors, progress and debug | progress_indent: indent used for progress messages"
+        "create_log_file": true,
+        "_comment": "log_level: 0=errors only, 1=errors and progress, 2=errors, progress and debug | progress_indent: indent used for progress messages | create_log_file: whether a log file should be created or not when running the program."
     },
 
     "citations_csv": {
@@ -10,11 +11,11 @@
         "filename": "citations",
         "missing_data_string": "NA",
         "array_separator": "|",
-        "first_last_separator": "+",
+        "concat_separator": "+",
         "title_case_titles": true,
         "update_blanks_automatically": true,
         "citation-code_format": "<firstauthor.family>_<year>",
-        "_comment": "directory: directory of the citation csv | filename: filename of the citation csv | missing_data_string: string to use for missing data | array_separator: separator for arrays in the csv | first_last_separator: separator for first and last names in author fields | title_case_titles: whether to put all titles in title case | update_blanks_automatically: whether all blanks in the .csv document (i.e., nothing in the cell, no `missing_data_string`) should be automatically updated whenever the program is used. If `false`, the `--update` tag has to be used to fill in these blanks | citation_code_format: format for citation codes, using fields from the csv in angle brackets. Besides <firstauthor.family> and <firstauthor.given>, all fields found in the csv can be used in the `citation-code`, specified with angle brackets. Unaccepted characters in citation codes are replaced with underscores, and citation codes are made unique by automatically adding a suffix to the end."
+        "_comment": "directory: directory of the citation csv (path can be relative or absolute) | filename: filename of the citation csv | missing_data_string: string to use for missing data | array_separator: separator for arrays in the csv | first_last_separator: separator for first and last names in author fields | title_case_titles: whether to put all titles in title case | update_blanks_automatically: whether all blanks in the .csv document (i.e., nothing in the cell, no `missing_data_string`) should be automatically updated whenever the program is used. If `false`, the `--update` tag has to be used to fill in these blanks | citation_code_format: format for citation codes, using fields from the csv in angle brackets. Besides <firstauthor.family> and <firstauthor.given>, all fields found in the csv can be used in the `citation-code`, specified with angle brackets. Unaccepted characters in citation codes are removed, white spaces are replaced with underscores, and since citation codes are made unique by automatically adding a suffix to the end, any that end with lower-case letters will have an underscore appended to them."
     },
 
     "markdown": {
@@ -40,7 +41,7 @@
             "physical_copy": false,
             "processed": false
         },
-        "_comment": "directory: directory to save markdown files | link_cited: whether to link a paper's md to the mds of cited papers in your citation csv, if they are present, in a `cited` property in the md | delete_unmatched_citations: whether to delete files in the markdown directory with names (citation codes) that are not cited in the citation csv | automate_pdf_link: whether to automatically add a link to the pdf of the paper in the md | included_properties: properties to include in the markdown file, must match name of attributes in csv (note when data is missing the property will be omitted entirely) | user-defined_properties: user-defined properties to include in the md with their default values. Can be used to add custom properties to the md, or to force the inclusion of properties when their respective entries have no data in the csv"
+        "_comment": "directory: directory to save markdown files (path can be relative or absolute) | link_cited: whether to link a paper's md to the mds of cited papers in your citation csv, if they are present, in a `cited` property in the md | delete_unmatched_citations: whether to delete files in the markdown directory with names (citation codes) that are not cited in the citation csv | automate_pdf_link: whether to automatically add a link to the pdf of the paper in the md | included_properties: properties to include in the markdown file, must match name of attributes in csv (note when data is missing the property will be omitted entirely) | user-defined_properties: user-defined properties to include in the md with their default values. Can be used to add custom properties to the md, or to force the inclusion of properties when their respective entries have no data in the csv"
     },
 
     "bibliography": {
@@ -49,7 +50,7 @@
         "make_hayagriva": true,
         "make_bibtex": true,
         "delete_unmatched_entries": true,
-        "_comment": "directory: directory to save bibliography files | make_hayagriva: whether to make a Hayagriva bibliography file | make_bibtex: whether to make a BibTeX bibliography file | delete_unmatched_entries: whether to delete entries in the bibliography that are not cited in the citation csv"
+        "_comment": "directory: directory to save bibliography files (path can be relative or absolute) | make_hayagriva: whether to make a Hayagriva bibliography file | make_bibtex: whether to make a BibTeX bibliography file | delete_unmatched_entries: whether to delete entries in the bibliography that are not cited in the citation csv"
     },
 
     "network": {
@@ -119,7 +120,6 @@
                 "cited-dois"
             ],
             "crossref": {
-                "/": "message",
                 "title": "title.0@",
                 "author": "author.*.[family,given]",
                 "year": "published-print.date-parts.0.0|published-online.date-parts.0.0",
@@ -133,7 +133,7 @@
                 "url": "resource.primary.URL",
                 "cited-by-count": "is-referenced-by-count",
                 "type": "type",
-                "abstract": "abstract",
+                "abstract": "abstract@",
                 "cited-dois": "refereence.*.DOI"
             },
             "openlibrary": {
@@ -148,7 +148,7 @@
             },
             "googlebooks": {
                 "/": "items.0",
-                "title": "volumeInfo.title@",
+                "title": "volumeInfo.[title,subtitle]@",
                 "author": "volumeInfo.authors@",
                 "year": "volumeInfo.publishedDate@",
                 "month": "volumeInfo.publishedDate@",
@@ -157,7 +157,7 @@
                 "url": "volumeInfo.canonicalVolumeLink",
                 "type": "kind@"
             },
-            "_comment": "headers for the csv file overall and by api, with addresses to find data in json response from each api. If the header is missing for the api, or data is not found in response, the property will be set to the missing_data_string in settings.json. | indicate alternate addresses to try in order, Integers in address represent the index of the array element to access, * represents creating a list of the items found at the rest of the address across an array, [] is for concatenation of multiple fields (only used in crossref authors), @ is to flag for special processing by the _process_data method in the Works classes in api.py. The `/` key is used to specify the root of the json response for all other addresses to be evaluated by. If the root is not specified, the root is assumed to be the json response itself. `info_headers` are headers with data collected from the apis or edited by users. Others are added and managed by the program (specifically, those found in _GenWorks._set_citation_code of api.py)."
+            "_comment": "headers for the csv file overall and by api, with addresses to find data in json response from each api. If the header is missing for the api, or data is not found in response, the property will be set to the missing_data_string in settings.json. | indicate alternate addresses to try in order, Integers in address represent the index of the array element to access, * represents creating a list of the items found at the rest of the address across an array, [] is for concatenation of multiple fields, @ is to flag for special processing by the _process_data method in the Works classes in api.py. The `/` key is used to specify the root of the json response for all other addresses to be evaluated by. If the root is not specified, the root is assumed to be the json response itself. `info_headers` are headers with data collected from the apis or edited by users. Others are added and managed by the program (specifically, those found in _GenWorks._set_citation_code of api.py)."
         }
     }
 }

@@ -7,7 +7,7 @@
 # Exclude python cache
 __pycache__
 
-_unit_tests
+_test*.py
 test.py
 temp.py
 citation.log

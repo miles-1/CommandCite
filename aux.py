@@ -2,7 +2,7 @@ import traceback
 import json
 import sys
 import re
-from os.path import join, dirname
+from os.path import join, dirname, isabs
 
 # settings
 with open("settings.json") as settings_file:
@@ -12,7 +12,8 @@ with open("settings.json") as settings_file:
 class Log:
     def __init__(self):
         self.log_level = settings["logging"]["log_level"]
-        self.log = open("citation.log", "w")
+        self.create_log_file = settings["logging"]["create_log_file"]
+        self.log = open("citation.log", "w") if self.create_log_file else None
         self.debug("Creating logger")
         if self.log_level < 0 or self.log_level > 2:
             self.error("ValueError", "log_level in settings.json must be between 0 and 2")
@@ -24,53 +25,66 @@ class Log:
             error = error.__class__.__name__
             error_traceback = "\n" + "-" * 30 + "\n" + traceback.format_exc()
         error_str = f">>> ERROR ({error}): {message}{error_traceback}"
-        self.log.write(error_str + "\n")
-        self.log.close()
+        if self.create_log_file:
+            self.log.write(error_str + "\n")
+            self.log.close()
         print(error_str)
         sys.exit(1)
     
     def progress(self, message):
-        self.log.write(message + "\n")
+        if self.create_log_file:
+            self.log.write(message + "\n")
         if self.log_level >= 1:
             print(message)
     
     def debug(self, message):
         message = f"> DEBUG: {message}"
-        self.log.write(message + "\n")
+        if self.create_log_file:
+            self.log.write(message + "\n")
         if self.log_level == 2:
             print(message)
 
 logger = Log()
 
-logger.debug("Beginning to load settings from settings.json for aux.py")
+def _get_path(settings_dict, extension="", check_field=None):
+    directory = settings_dict["directory"]
+    directory = directory if isabs(directory) else join(dirname(sys.argv[0]), directory)
+    complete_path = join(directory, settings_dict["filename"]) + extension if extension else directory
+    return complete_path if not isinstance(check_field, str) or settings_dict[check_field] else None
+
 try:
-    logger.debug("Loading csv settings from settings.json")
+    logger.debug("Beginning to load settings from settings.json for aux.py")
+    # citations csv settings
+    logger.debug("Loading citations csv settings from settings.json")
     missing_data_string = settings["citations_csv"]["missing_data_string"]
     array_separator = settings["citations_csv"]["array_separator"]
-    first_last_separator = settings["citations_csv"]["first_last_separator"]
+    concat_separator = settings["citations_csv"]["concat_separator"]
     title_case_titles = settings["citations_csv"]["title_case_titles"]
-
+    # file names
     logger.debug("Loading filenames from settings.json")
-    csv_file_name = join(dirname(sys.argv[0]), settings["citations_csv"]["directory"], settings["citations_csv"]["filename"] + ".csv")
-    md_dir_name = \
-        join(dirname(sys.argv[0]), settings["markdown"]["directory"]) \
-        if settings["markdown"]["make_md"] else None
-    bibtex_file_name = \
-        join(dirname(sys.argv[0]), settings["bibliography"]["directory"], settings["bibliography"]["filename"] + ".bib") \
-        if settings["bibliography"]["make_bibtex"] else None
-    hayagriva_file_name = \
-        join(dirname(sys.argv[0]), settings["bibliography"]["directory"], settings["bibliography"]["filename"] + ".yml") \
-        if settings["bibliography"]["make_hayagriva"] else None
+    csv_file_name = _get_path(settings["citations_csv"], extension=".csv")
+    md_dir_name = _get_path(settings["markdown"], check_field="make_md")
+    bibtex_file_name = _get_path(settings["bibliography"], extension=".bib", check_field="make_bibtex")
+    hayagriva_file_name = _get_path(settings["bibliography"], extension=".yml", check_field="make_hayagriva")
 except KeyError as e:
     logger.error(e, "settings.json file is missing required keys")
 logger.debug("Finished loading settings from settings.json for aux.py")
 
-# title formatting functions
+# title and abstract formatting functions
 def format_title(string):
-    return make_smart_title_case(string) if title_case_titles else replace_special_characters(string)
+    """Replaces special characters and capitalizes if specified in settings.json"""
+    if string == missing_data_string:
+        return string
+    string = replace_special_characters(string)
+    return make_smart_title_case(string) if title_case_titles else string
+
+def remove_html_tags(string):
+    """Removes any HTML tags (aka any tags with <>) from string."""
+    return re.sub(r"<.*?>", "", string)
 
 def replace_special_characters(string):
-    """Replaces special (HTML encoded or lookalike) characters in a string"""
+    """Replaces special characters, HTML tags, and HTML encoded characters in a string"""
+    string = remove_html_tags(string)
     replacement_dict = {
         "&amp;": "&",
         "&quot;": "\"",
@@ -120,7 +134,6 @@ def make_smart_title_case(string):
         "with",
         "yet",
     ]
-    string = replace_special_characters(string)
     words = string.split(" ")
     for i in range(len(words)):
         if i == 0 or i == len(words) - 1 or words[i] not in lower_words:
@@ -129,16 +142,16 @@ def make_smart_title_case(string):
 
 # author name formatting function
 def format_names(names):
-    return array_separator.join(first_last_separator.join(split_name(name) for name in names))
+    return array_separator.join(split_name(name) for name in names)
 
 def split_name(name):
-    """Attempts to collect family and given name connected by the `first_last_separator` by splitting the given string"""
+    """Attempts to collect family and given name connected by the \"concat_separator\" by splitting the given string"""
     if ". " in name:
         name_lst = list(reversed(name.rsplit(". ", 1)))
         name_lst[1] += "."
     else:
         name_lst = list(reversed(name.rsplit(" ", 1)))
-    return first_last_separator.join(name_lst)
+    return concat_separator.join(name_lst)
 
 # isbn formatting function
 def format_isbn(isbn):
@@ -153,11 +166,18 @@ def format_isbn(isbn):
     isbn = isbn.replace("-", "")
     return isbn
 
+# citation code formatting function
+def format_citation_code(code):
+    return re.sub(r"([a-z])\b", r"\1_",
+                  re.sub("\\s+", "_", 
+                         re.sub(r"[\\/:;*\[\]?\"'<>|]", "", 
+                                code)))
+
 # data retrieval function
 def get_data_by_address(data, address):
     """Return the location at a given address, or missing_data_string if missing."""
     if match := re.match(r".*\[.*?([\.\*\[\]]).*?\].*", address):
-        logger.error("Misuse of [] in Response Address", f"The [] address notation in `csv_headers` of settings.json should only hold individual keys or indices separated by commas, but contained a `{match.group(1)}`.")
+        logger.error("Misuse of [] in Response Address", f"The [] address notation in \"csv_headers\" of settings.json should only hold individual keys or indices separated by commas, but contained a \"{match.group(1)}\".")
     address_options = address.split("|")
     for address in address_options:
         if needs_processing := address.endswith("@"):
@@ -178,7 +198,7 @@ def get_data_by_address(data, address):
                         data_chunk = missing_data_string
                         break
                 else:
-                    logger.error("Misuse of Integer in Response Address", f"An integer in api addresses should only be used when the preceeding address fragment gives a list, where the index is less than the length of that list. Instead, the preceeding address fragment gave a `{type(data_chunk)}`{'' if not isinstance(data_chunk, list) else f' of length {len(data_chunk)}'}.")
+                    logger.error("Misuse of Integer in Response Address", f"An integer in api addresses should only be used when the preceeding address fragment gives a list, where the index is less than the length of that list. Instead, the preceeding address fragment gave a {type(data_chunk)}.")
             # handle * address part
             elif part == "*":
                 if isinstance(data_chunk, list):
@@ -189,12 +209,12 @@ def get_data_by_address(data, address):
                     )
                     break # do not continue after recursion
                 else:
-                    logger.error("Misuse of * in Response Address", f"The * symbol in api addresses should only be used when the preceeding address fragment gives a list. Instead, the preceeding address fragment gave a `{type(data_chunk)}`.")
+                    logger.error("Misuse of * in Response Address", f"The * symbol in api addresses should only be used when the preceeding address fragment gives a list. Instead, the preceeding address fragment gave a {type(data_chunk)}.")
             # handle [] address part
             elif part.startswith("[") and part.endswith("]"):
                 remaining_address = "." + ".".join(address_parts[part_indx+1:]) if len(address_parts) > part_indx + 1 else ""
                 parts = [p + remaining_address for p in part[1:-1].split(",")]
-                data_chunk = first_last_separator.join(
+                data_chunk = concat_separator.join(
                     x for p in parts
                     if (x := str(get_data_by_address(data_chunk, p)[1])) is not missing_data_string
                 )
@@ -239,4 +259,3 @@ def get_int_from_code_suffix(suffix):
     for i, char in enumerate(reversed(suffix)):
         number += (ord(char) - ord("a") + 1) * (26 ** i)
     return number
-
