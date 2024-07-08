@@ -1,6 +1,6 @@
 from crossref.restful import Works, Etiquette
 from time import sleep
-from aux import settings, logger, get_data_by_address
+from aux import settings, logger, get_data_by_address, format_title, format_isbn, format_names
 import requests
 import re
 from datetime import datetime
@@ -21,7 +21,7 @@ try:
     project_url = settings["polite_api"]["project_url"]
     contact_email = settings["polite_api"]["contact_email"]
     
-    logger.debug("Loading ISBN api urls from settings.json")
+    logger.debug("Loading isbn api urls from settings.json")
     openlibrary_url = settings["advanced"]["api"]["openlibrary"]["url"]
     googlebooks_url = settings["advanced"]["api"]["googlebooks"]["url"]
     
@@ -29,7 +29,6 @@ try:
     missing_data_string = settings["citations_csv"]["missing_data_string"]
     array_separator = settings["citations_csv"]["array_separator"]
     first_last_separator = settings["citations_csv"]["first_last_separator"]
-    title_case_titles = settings["citations_csv"]["title_case_titles"]
     citation_code_format = settings["citations_csv"]["citation-code_format"]
     
     logger.debug("Loading api response data paths from settings.json")
@@ -48,68 +47,72 @@ class _GenWorks:
         self.api_header_addresses = header_addresses[self.api_name]
         self.api_header_address_root = self.api_header_addresses.pop("/") if "/" in self.api_header_addresses else ""
         self.url = url
-        self.citation_dict = None
+        self.citation_dict, self.code = (None,) * 2
 
     def _request(self, code, code_type):
         logger.error("Not Implimented Error", f"Should not call private method _request() from base class {self.api_name}")
 
-    def get_csv_row(self, response, make_md=True, make_bib=True):
-        logger.debug(f"{self.api_class_name}: creating csv row for data")
+    def get_csv_row(self, response, code, code_type, make_md=True, make_bib=True):
+        logger.debug(f"{self.api_class_name}: creating csv row for {code_type} {code}")
         # make framework dict
         program_headers = ["citation-code", "make-md", "make-bib", "add-date"]
         if any(header not in header_addresses["info_headers"] for header in self.api_header_addresses):
             logger.error("Bad Header", f"{self.api_class_name}: in settings.json, headers exist for {self.api_name} that are absent in `info_headers`.")
         self.citation_dict = {header: missing_data_string for header in header_addresses["info_headers"] + program_headers}
+        logger.debug(f"{self.api_class_name}: adding content for `make-md`, `make-bib`, `add-date`, and `{code_type}` fields")
         self.citation_dict["make-md"], self.citation_dict["make-bib"] = make_md, make_bib
         self.citation_dict["add-date"] = datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
+        self.citation_dict["code_type"] = code
         # add in header items
+        logger.debug(f"{self.api_class_name}: filling in data for other fields from response")
         for header, address in self.api_header_addresses:
             address = self.api_header_address_root + address
             needs_processing, data = get_data_by_address(response, address)
             self.citation_dict[header] = self._process_data(header, data) if needs_processing else data
         # return completed dict
+        self._set_citation_code()
         return self.citation_dict
 
     def _process_data(self, header, data):
-        logger.error("Not Implimented Error", f"Should not call private method _process_data() from base class {self.api_name}")
+        logger.error("Unhandled Header", f"The @ symbol was used in the address for {header} but not handled by {self.api_class_name}._process_data")
     
-    def _set_citation_code(self, citation_dict):
-        logger.debug(f"Creating citation code for \"{citation_dict['title'][:15].rstrip()}...\"")
+    def _set_citation_code(self):
+        logger.debug(f"Creating citation code for \"{self.citation_dict['title'][:15].rstrip()}...\"")
         matches = [(match.group(1), match.span()) for match in re.finditer(r"<([a-z\-]*?.?[a-z]*?)>", citation_code_format)]
-        first_author_family_name, first_author_given_name = citation_dict["author"].split(array_separator, 1)[0].split(first_last_separator)
+        first_author_family_name, first_author_given_name = self.citation_dict["author"].split(array_separator, 1)[0].split(first_last_separator)
         special_keys = {
             "firstauthor.family": first_author_family_name, 
             "firstauthor.given": first_author_given_name
         }
-        bad_keys = [match[0] for match in matches if match[0] not in citation_dict or match[0] not in special_keys]
+        bad_keys = [match[0] for match in matches if match[0] not in self.citation_dict or match[0] not in special_keys]
         if len(bad_keys) > 0:
             logger.error("Bad citation code format", f"cannot interpret <{bad_keys[0]}> in 'citation-code_format' in settings.json")
         all_indx_cutoffs = [0] + [indx for match in matches for indx in match[1]] + [len(citation_code_format)]
         non_match_indx_ranges = list(zip(all_indx_cutoffs[::2], all_indx_cutoffs[1::2]))
         final_string = ""
         for non_match_indx_range, (group, _) in zip(non_match_indx_ranges[:-1], matches):
-            final_string += citation_code_format[slice(*non_match_indx_range)] + (citation_dict[group] if group in citation_dict else special_keys[group])
+            final_string += citation_code_format[slice(*non_match_indx_range)] + (self.citation_dict[group] if group in self.citation_dict else special_keys[group])
         final_string += citation_code_format[slice(*non_match_indx_ranges[-1])]
+        self.citation_dict["citation-code"] = final_string
         logger.debug(f"Created citation code base: {final_string}")
-        return final_string
 
     def get_work(self, code, code_type):
         if not code:
             logger.debug(f"{self.api_class_name}: {code_type} provided is empty. Skipping")
-            return None
+            return None, None
         for i in range(num_retries):
             logger.debug(f"{self.api_class_name}: Attempt {i+1} to retrieve {code_type}: {code}")
             try:
-                response = self._request(code, code_type)
+                processed_code, response = self._request(code, code_type)
                 if response is None:
                     logger.debug(f"{self.api_class_name}: Received 'None' response for {code_type}: {code}")
                 else:
                     logger.debug(f"{self.api_class_name}: Successfully retrieved {code_type}: {code}")
-                return response
+                return processed_code, response
             except requests.exceptions.Timeout:
                 if i == num_retries - 1:
                     logger.debug(f"{self.api_class_name}: Timeout while retrieving {code_type}: {code}. No more retries left. Moving on")
-                    return None
+                    return None, None
                 logger.debug(f"{self.api_class_name}: Timeout while retrieving {code_type}: {code}. Sleeping for {retry_delay} seconds")
                 sleep(retry_delay)
             except Exception as e:
@@ -127,15 +130,22 @@ class CrossRefWorks(_GenWorks):
         self.works = Works(timeout=timeout, etiquette=self.etiquette)
     
     def _request(self, code, code_type):
-        return self.works.doi(code)
+        code = code.strip()
+        response = self.works.doi(code)
+        return (code, response) if response is not None else (None, None)
     
     def doi(self, doi):
-        return super().get_work(doi, "DOI")
+        return super().get_work(doi, "doi")
     
     def _process_data(self, header, data):
-        # TODO
-        pass
-
+        # crossref types: https://crossref.gitlab.io/knowledge_base/docs/topics/content-types/
+        match header:
+            case "title":
+                return format_title(data)  
+            case "day":
+                return data[2] if len(data) == 3 else missing_data_string
+        super()._process_data(header, data)
+                
 class _ISBNWorks(_GenWorks):
     def __init__(self, url):
         super().__init__()
@@ -151,17 +161,19 @@ class _ISBNWorks(_GenWorks):
             logger.debug(f"{self.api_class_name}: polite api settings not found in settings.json, using api anonymously")
     
     def _request(self, code, code_type):
+        code = format_isbn(code)
         response = requests.get(self.url + code, timeout=timeout, headers=self.ettiquette)
         if response.status_code == 200:
-            return self._validate(response.json())
+            response = self._validate(response.json())
+            return (code, response) if response is not None else (None, None)
         logger.debug(f"{self.api_class_name}: HTTP error {response.status_code} while retrieving {code_type}: {code}")
-        return None
+        return None, None
     
     def _validate(self, response):
         logger.error("Not Implimented Error", f"Should not call private method _validate() from base class {self.api_name}")
     
     def isbn(self, isbn):
-        return super().get_work(isbn, "ISBN")
+        return super().get_work(isbn, "isbn")
 
 class OpenLibraryWorks(_ISBNWorks):
     def __init__(self):
@@ -173,8 +185,20 @@ class OpenLibraryWorks(_ISBNWorks):
         return response
     
     def _process_data(self, header, data):
-        # TODO
-        pass
+        match header:
+            case "title":
+                return format_title(data)  
+            case "author":
+                return format_names(data)
+            case "year" | "month" | "day":
+                if header == "year" and isinstance(data, int):
+                    return data
+                return getattr(datetime.strptime(data, "%b %d, %Y"), header)
+            case "type":
+                if data == "work":
+                    return "book"
+                return data
+        super()._process_data(header, data)
 
 class GoogleBooksWorks(_ISBNWorks):
     def __init__(self):
@@ -186,6 +210,21 @@ class GoogleBooksWorks(_ISBNWorks):
         return response
     
     def _process_data(self, header, data):
-        # TODO
-        pass
+        match header:
+            case "title":
+                return format_title(data)
+            case "author":
+                return format_names(data)
+            case "year" | "month" | "day":
+                date_format = ("year", "month", "day")
+                date_lst = [int(num) for num in data.split("-")]
+                date_lst_indx = date_format.index(header) + 1
+                if len(date_lst) > date_lst_indx:
+                    return date_lst[date_lst_indx]
+                return missing_data_string
+            case "type":
+                if data == "books#volume":
+                    return "book"
+                return data
+        super()._process_data(header, data)
        

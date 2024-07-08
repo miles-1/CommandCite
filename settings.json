@@ -1,6 +1,6 @@
 {
     "logging": {
-        "log_level": 2,
+        "log_level": 1,
         "progress_indent": 2,
         "_comment": "log_level: 0=errors only, 1=errors and progress, 2=errors, progress and debug | progress_indent: indent used for progress messages"
     },
@@ -122,15 +122,14 @@
                 "/": "message",
                 "title": "title.0@",
                 "author": "author.*.[family,given]",
-                "year": "published-print.date-parts.0@|published-online.date-parts.0@",
-                "month": "published-print.date-parts.0@|published-online.date-parts.0@",
+                "year": "published-print.date-parts.0.0|published-online.date-parts.0.0",
+                "month": "published-print.date-parts.0.1|published-online.date-parts.0.1",
                 "day": "published-print.date-parts.0@|published-online.date-parts.0@",
                 "journal": "container-title.0",
                 "abbreviated-journal": "short-container-title.0",
                 "page": "page",
                 "volume": "volume",
                 "issue": "issue",
-                "doi": "DOI",
                 "url": "resource.primary.URL",
                 "cited-by-count": "is-referenced-by-count",
                 "type": "type",
@@ -145,7 +144,6 @@
                 "month": "publish_date.0@",
                 "day": "publish_date.0@",
                 "publisher": "publisher.0",
-                "isbn": "isbn@",
                 "type": "type@"
             },
             "googlebooks": {
@@ -156,11 +154,10 @@
                 "month": "volumeInfo.publishedDate@",
                 "day": "volumeInfo.publishedDate@",
                 "publisher": "volumeInfo.publisher",
-                "isbn": "volumeInfo.industryIdentifiers@",
                 "url": "volumeInfo.canonicalVolumeLink",
                 "type": "kind@"
             },
-            "_comment": "headers for the csv file overall and by api, with addresses to find data in json response from each api. If the header is missing for the api, or data is not found in response, the property will be set to the missing_data_string in settings.json. | indicate alternate addresses to try in order, Integers in address represent the index of the array element to access, * represents creating a list of the items found at the rest of the address across an array, [] is for concatenation of multiple fields (only used in crossref authors), @ is to flag for special processing by the Works classes in api.py. The `/` key is used to specify the root of the json response for all other addresses to be evaluated by. If the root is not specified, the root is assumed to be the json response itself. `info_headers` are headers with data collected from the apis or edited by users. Others are added and managed by the program (specifically, those found in _GenWorks._set_citation_code of api.py)."
+            "_comment": "headers for the csv file overall and by api, with addresses to find data in json response from each api. If the header is missing for the api, or data is not found in response, the property will be set to the missing_data_string in settings.json. | indicate alternate addresses to try in order, Integers in address represent the index of the array element to access, * represents creating a list of the items found at the rest of the address across an array, [] is for concatenation of multiple fields (only used in crossref authors), @ is to flag for special processing by the _process_data method in the Works classes in api.py. The `/` key is used to specify the root of the json response for all other addresses to be evaluated by. If the root is not specified, the root is assumed to be the json response itself. `info_headers` are headers with data collected from the apis or edited by users. Others are added and managed by the program (specifically, those found in _GenWorks._set_citation_code of api.py)."
         }
     }
 }

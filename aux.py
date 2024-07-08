@@ -1,6 +1,8 @@
 import traceback
 import json
 import sys
+import re
+from os.path import join, dirname
 
 # settings
 with open("settings.json") as settings_file:
@@ -10,45 +12,83 @@ with open("settings.json") as settings_file:
 class Log:
     def __init__(self):
         self.log_level = settings["logging"]["log_level"]
+        self.log = open("citation.log", "w")
         self.debug("Creating logger")
         if self.log_level < 0 or self.log_level > 2:
             self.error("ValueError", "log_level in settings.json must be between 0 and 2")
         self.debug("Logger created")
     
     def error(self, error, message):
-        explanation = ""
+        error_traceback = ""
         if isinstance(error, Exception):
             error = error.__class__.__name__
-            explanation = ": " + str(error)
-            explanation = explanation if explanation != error else ""
-        print(f">>> ERROR ({error}): {message}{explanation}")
-        print("-"*30)
-        traceback.print_exc()
+            error_traceback = "\n" + "-" * 30 + "\n" + traceback.format_exc()
+        error_str = f">>> ERROR ({error}): {message}{error_traceback}"
+        self.log.write(error_str + "\n")
+        self.log.close()
+        print(error_str)
         sys.exit(1)
     
     def progress(self, message):
+        self.log.write(message + "\n")
         if self.log_level >= 1:
             print(message)
     
     def debug(self, message):
+        message = f"> DEBUG: {message}"
+        self.log.write(message + "\n")
         if self.log_level == 2:
-            print(f"> DEBUG: {message}")
+            print(message)
 
 logger = Log()
 
 logger.debug("Beginning to load settings from settings.json for aux.py")
 try:
+    logger.debug("Loading csv settings from settings.json")
     missing_data_string = settings["citations_csv"]["missing_data_string"]
     array_separator = settings["citations_csv"]["array_separator"]
     first_last_separator = settings["citations_csv"]["first_last_separator"]
+    title_case_titles = settings["citations_csv"]["title_case_titles"]
+
+    logger.debug("Loading filenames from settings.json")
+    csv_file_name = join(dirname(sys.argv[0]), settings["citations_csv"]["directory"], settings["citations_csv"]["filename"] + ".csv")
+    md_dir_name = \
+        join(dirname(sys.argv[0]), settings["markdown"]["directory"]) \
+        if settings["markdown"]["make_md"] else None
+    bibtex_file_name = \
+        join(dirname(sys.argv[0]), settings["bibliography"]["directory"], settings["bibliography"]["filename"] + ".bib") \
+        if settings["bibliography"]["make_bibtex"] else None
+    hayagriva_file_name = \
+        join(dirname(sys.argv[0]), settings["bibliography"]["directory"], settings["bibliography"]["filename"] + ".yml") \
+        if settings["bibliography"]["make_hayagriva"] else None
 except KeyError as e:
     logger.error(e, "settings.json file is missing required keys")
 logger.debug("Finished loading settings from settings.json for aux.py")
 
-# aux functions
+# title formatting functions
+def format_title(string):
+    return make_smart_title_case(string) if title_case_titles else replace_special_characters(string)
 
-def smart_title_case(string):
-    """Gives title case for string besides ignored words"""
+def replace_special_characters(string):
+    """Replaces special (HTML encoded or lookalike) characters in a string"""
+    replacement_dict = {
+        "&amp;": "&",
+        "&quot;": "\"",
+        "&apos;": "'",
+        "&lt;": "<",
+        "&gt;": ">",
+        " ": " ",
+        "‐": "-",
+        "–": "-",
+        "—": "-",
+        "’": "'",
+    }
+    for character, replacement in replacement_dict.items():
+        string = string.replace(character, replacement)
+    return string
+
+def make_smart_title_case(string):
+    """Gives title case for string besides ignored words, AND replaces special characters"""
     lower_words = [
         "a",
         "an",
@@ -80,43 +120,44 @@ def smart_title_case(string):
         "with",
         "yet",
     ]
+    string = replace_special_characters(string)
     words = string.split(" ")
     for i in range(len(words)):
         if i == 0 or i == len(words) - 1 or words[i] not in lower_words:
             words[i] = words[i].capitalize()
     return " ".join(words)
 
-def isbn_formatting(isbn):
+# author name formatting function
+def format_names(names):
+    return array_separator.join(first_last_separator.join(split_name(name) for name in names))
+
+def split_name(name):
+    """Attempts to collect family and given name connected by the `first_last_separator` by splitting the given string"""
+    if ". " in name:
+        name_lst = list(reversed(name.rsplit(". ", 1)))
+        name_lst[1] += "."
+    else:
+        name_lst = list(reversed(name.rsplit(" ", 1)))
+    return first_last_separator.join(name_lst)
+
+# isbn formatting function
+def format_isbn(isbn):
     """Formats ISBNs to remove common delimiters and reduce to numbers"""
-    isbn = isbn.replace("-", "").replace(" ", "").lower()
+    isbn = isbn.strip().replace(" ", "").lower()
     if isbn.startswith("isbn"):
         isbn = isbn[4:]
+        if isbn.startswith("-13") or isbn.startswith("-10"):
+            isbn = isbn[3:]
         if isbn.startswith(":"):
             isbn = isbn[1:]
+    isbn = isbn.replace("-", "")
     return isbn
 
-def get_code_suffix_from_int(num):
-    """
-    Converts number (integer) to letter suffix. 
-    1 gives a, 2 gives b, ... 26 gives z, 27 gives aa, ...
-    """
-    suffix = ""
-    while num > 0:
-        num -= 1
-        remainder = num % 26
-        suffix = chr(remainder + ord("a")) + suffix
-        num = num // 26
-    return suffix
-
-def get_int_from_code_suffix(suffix):
-    """Reverse operation of get_code_suffix_from_int"""
-    number = 0
-    for i, char in enumerate(reversed(suffix)):
-        number += (ord(char) - ord("a") + 1) * (26 ** i)
-    return number
-
+# data retrieval function
 def get_data_by_address(data, address):
     """Return the location at a given address, or missing_data_string if missing."""
+    if match := re.match(r".*\[.*?([\.\*\[\]]).*?\].*", address):
+        logger.error("Misuse of [] in Response Address", f"The [] address notation in `csv_headers` of settings.json should only hold individual keys or indices separated by commas, but contained a `{match.group(1)}`.")
     address_options = address.split("|")
     for address in address_options:
         if needs_processing := address.endswith("@"):
@@ -130,31 +171,72 @@ def get_data_by_address(data, address):
                 break
             # handle integer address part
             elif part.isdigit():
-                if isinstance(data_chunk, list) and len(data_chunk) > int(part):
-                    data_chunk = data_chunk[int(part)]
+                if isinstance(data_chunk, list):
+                    if len(data_chunk) > int(part):
+                        data_chunk = data_chunk[int(part)]
+                    else:
+                        data_chunk = missing_data_string
+                        break
                 else:
-                    logger.error("Misuse of Integer in Response Address", f"An integer in api addresses should only be used when the preceeding address fragment gives a list. Instead, the preceeding address fragment gave a {type(data_chunk)}.")
+                    logger.error("Misuse of Integer in Response Address", f"An integer in api addresses should only be used when the preceeding address fragment gives a list, where the index is less than the length of that list. Instead, the preceeding address fragment gave a `{type(data_chunk)}`{'' if not isinstance(data_chunk, list) else f' of length {len(data_chunk)}'}.")
             # handle * address part
             elif part == "*":
                 if isinstance(data_chunk, list):
                     new_path = ".".join(address_parts[part_indx+1:])
-                    data_chunk = array_separator.join(get_data_by_address(d, new_path)[1] for d in data_chunk)
+                    data_chunk = array_separator.join(
+                        x for d in data_chunk
+                        if (x := str(get_data_by_address(d, new_path)[1])) is not missing_data_string
+                    )
+                    break # do not continue after recursion
                 else:
-                    logger.error("Misuse of * in Response Address", f"The * symbol in api addresses should only be used when the preceeding address fragment gives a list. Instead, the preceeding address fragment gave a {type(data_chunk)}.")
+                    logger.error("Misuse of * in Response Address", f"The * symbol in api addresses should only be used when the preceeding address fragment gives a list. Instead, the preceeding address fragment gave a `{type(data_chunk)}`.")
             # handle [] address part
             elif part.startswith("[") and part.endswith("]"):
-                remaining_address = "." + address_parts[part_indx+1:] if len(address_parts) > part_indx + 1 else "" # not tested
+                remaining_address = "." + ".".join(address_parts[part_indx+1:]) if len(address_parts) > part_indx + 1 else ""
                 parts = [p + remaining_address for p in part[1:-1].split(",")]
-                data_chunk = first_last_separator.join(get_data_by_address(data_chunk, p)[1] for p in parts)
-                break
+                data_chunk = first_last_separator.join(
+                    x for p in parts
+                    if (x := str(get_data_by_address(data_chunk, p)[1])) is not missing_data_string
+                )
+                break # do not continue after recursion
             # handle dictionary keys
             else:
                 if part in data_chunk:
                     data_chunk = data_chunk[part]
                 else:
-                    logger.error("Missing Key in api Response", f"The response data is missing the key {part} when it was asked for")
+                    data_chunk = missing_data_string
+                    break
         # if current address option is not returning missing data, return that data
         if data_chunk != missing_data_string:
             return needs_processing, data_chunk
     # if all address options returned missing data
     return needs_processing, missing_data_string
+
+# suffix conversion functions
+def get_code_suffix_from_int(num):
+    """
+    Converts number (integer) to letter suffix. 
+    1 gives a, 2 gives b, ... 26 gives z, 27 gives aa, ...
+    """
+    if not isinstance(num, int) or num < 1:
+        logger.error("Incorrect Input", f"Bad input for get_code_suffix_from_int: {num}")
+    suffix = ""
+    while num > 0:
+        num -= 1
+        remainder = num % 26
+        suffix = chr(remainder + ord("a")) + suffix
+        num = num // 26
+    return suffix
+
+def get_int_from_code_suffix(suffix):
+    """
+    Converts letter suffix to number (integer).
+    a gives 1, b gives 2, ... z gives 26, aa gives 27, ...
+    """
+    if not suffix.isalpha():
+        logger.error("Incorrect Input", f"Bad input for get_int_from_code_suffix: {suffix}")
+    number = 0
+    for i, char in enumerate(reversed(suffix)):
+        number += (ord(char) - ord("a") + 1) * (26 ** i)
+    return number
+

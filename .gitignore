@@ -7,8 +7,8 @@
 # Exclude python cache
 __pycache__
 
-# _unittests.py
+_unit_tests
 test.py
 temp.py
-
+citation.log
 reference_docs
