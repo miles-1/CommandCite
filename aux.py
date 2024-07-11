@@ -10,9 +10,10 @@ with open("settings.json") as settings_file:
 
 # logger
 class Log:
+    log_level = settings["logging"]["log_level"]
+    create_log_file = settings["logging"]["create_log_file"]
+
     def __init__(self):
-        self.log_level = settings["logging"]["log_level"]
-        self.create_log_file = settings["logging"]["create_log_file"]
         self.log = open("citation.log", "w") if self.create_log_file else None
         self.debug("Creating logger")
         if self.log_level < 0 or self.log_level > 2:
@@ -29,7 +30,7 @@ class Log:
             self.log.write(error_str + "\n")
             self.log.close()
         print(error_str)
-        sys.exit(1)
+        sys.exit(2)
     
     def progress(self, message):
         if self.create_log_file:
@@ -66,9 +67,12 @@ try:
     md_dir_name = _get_path(settings["markdown"], check_field="make_md")
     bibtex_file_name = _get_path(settings["bibliography"], extension=".bib", check_field="make_bibtex")
     hayagriva_file_name = _get_path(settings["bibliography"], extension=".yml", check_field="make_hayagriva")
+    logger.debug("Finished loading settings from settings.json for aux.py")
 except KeyError as e:
     logger.error(e, "settings.json file is missing required keys")
-logger.debug("Finished loading settings from settings.json for aux.py")
+
+# program-managed headers
+program_headers = ["citation-code", "add-date"]
 
 # title and abstract formatting functions
 def format_title(string):
@@ -166,12 +170,51 @@ def format_isbn(isbn):
     isbn = isbn.replace("-", "")
     return isbn
 
-# citation code formatting function
-def format_citation_code(code):
+# citation code functions
+def format_base_citation_code(code):
     return re.sub(r"([a-z])\b", r"\1_",
                   re.sub("\\s+", "_", 
                          re.sub(r"[\\/:;*\[\]?\"'<>|]", "", 
                                 code)))
+
+def get_citation_code_parts(code):
+    base_code = re.sub(r"[a-z]+\b", "", code)
+    code_suffix = re.match(r".*?([a-z]+)\b", code)
+    if code_suffix is not None:
+        code_suffix = code_suffix.group(1)
+    return base_code, code_suffix
+
+def get_code_suffix_from_int(num):
+    """
+    Converts number (integer) to letter suffix. 
+    1 gives a, 2 gives b, ... 26 gives z, 27 gives aa, ...
+    """
+    if not isinstance(num, int) or num < 1:
+        logger.error("Incorrect Input", f"Bad input for get_code_suffix_from_int: {num}")
+    suffix = ""
+    while num > 0:
+        num -= 1
+        remainder = num % 26
+        suffix = chr(remainder + ord("a")) + suffix
+        num = num // 26
+    return suffix
+
+def get_int_from_code_suffix(suffix):
+    """
+    Converts letter suffix to number (integer).
+    a gives 1, b gives 2, ... z gives 26, aa gives 27, ...
+    """
+    if not suffix.isalpha():
+        logger.error("Incorrect Input", f"Bad input for get_int_from_code_suffix: {suffix}")
+    number = 0
+    for i, char in enumerate(reversed(suffix)):
+        number += (ord(char) - ord("a") + 1) * (26 ** i)
+    return number
+
+def is_valid_citation_code(code):
+    """Verifies if a full citation code is of a valid format."""
+    base_code, code_suffix = get_citation_code_parts(code)
+    return code_suffix is not None and format_base_citation_code(base_code) == base_code
 
 # data retrieval function
 def get_data_by_address(data, address):
@@ -232,30 +275,29 @@ def get_data_by_address(data, address):
     # if all address options returned missing data
     return needs_processing, missing_data_string
 
-# suffix conversion functions
-def get_code_suffix_from_int(num):
-    """
-    Converts number (integer) to letter suffix. 
-    1 gives a, 2 gives b, ... 26 gives z, 27 gives aa, ...
-    """
-    if not isinstance(num, int) or num < 1:
-        logger.error("Incorrect Input", f"Bad input for get_code_suffix_from_int: {num}")
-    suffix = ""
-    while num > 0:
-        num -= 1
-        remainder = num % 26
-        suffix = chr(remainder + ord("a")) + suffix
-        num = num // 26
-    return suffix
+# program argument processing function
+def format_arguments(args, flag="--setcode"):
+    result = []
+    i = 0
+    while i < len(args):
+        entry_code = args[i]
+        if entry_code.startswith("--"):
+            logger.error("Unrecognized Flag", f"The flag \"{entry_code}\" is not recognized. Only \"--update\", \"--update-all\", \"--setcode\", \"--rename\", and \"--help\" are recognized.")
+        entry_code_type = get_entry_code_type(entry_code)
+        if entry_code_type is None:
+            logger.error("Unrecognized Argument", f"The argument {entry_code} was expected to be a DOI or an ISBN, but follows the format of neither. DOIs take the form \"10.xxxx/abcd\", whereas ISBNs are just numbers.")
+        if i < len(args) - 1 and args[i+1] == flag:
+            custom_base_code = format_base_citation_code(args[i+1])       
+            result.append((entry_code, entry_code_type, custom_base_code))
+            i += 3
+        else:
+            result.append((entry_code, entry_code_type, None))
+            i += 1
+    return result
 
-def get_int_from_code_suffix(suffix):
-    """
-    Converts letter suffix to number (integer).
-    a gives 1, b gives 2, ... z gives 26, aa gives 27, ...
-    """
-    if not suffix.isalpha():
-        logger.error("Incorrect Input", f"Bad input for get_int_from_code_suffix: {suffix}")
-    number = 0
-    for i, char in enumerate(reversed(suffix)):
-        number += (ord(char) - ord("a") + 1) * (26 ** i)
-    return number
+def get_entry_code_type(code):
+    if re.match(r"10\.\d{4,}/.+", code) is not None:
+        return "doi"
+    if format_isbn(code).isdigit():
+        return "isbn"
+    return None

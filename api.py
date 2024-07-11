@@ -1,7 +1,7 @@
 from crossref.restful import Works, Etiquette
 from time import sleep
-from aux import settings, logger, get_data_by_address, \
-    format_title, format_isbn, format_names, format_citation_code, replace_special_characters
+from aux import settings, logger, program_headers, get_data_by_address, \
+    format_title, format_isbn, format_names, format_base_citation_code, replace_special_characters
 import requests
 import re
 from datetime import datetime
@@ -42,6 +42,9 @@ except KeyError as e:
 
 ### api classes
 class _GenWorks:
+    citation_dict = None
+    code = None
+
     def __init__(self, url=None):
         self.api_class_name = self.__class__.__name__
         self.api_name = self.api_class_name.replace("Works", "").lower()
@@ -52,12 +55,11 @@ class _GenWorks:
             self.code_type = "doi"
         elif self.api_name in ("openlibrary", "googlebooks"):
             self.code_type = "isbn"
-        self.citation_dict, self.code = (None,) * 2
 
     def _request(self, code):
         logger.error("Not Implimented Error", f"Should not call private method _request() from base class {self.api_name}")
 
-    def get_csv_row(self, code, make_md=True, make_bib=True, custom_citation_code=None):
+    def get_csv_row(self, code, custom_citation_code=None):
         logger.debug(f"Calling {self.api_name} api for {self.code_type} \"{code}\"")
         code = self._format_code(code)
         response = self.get_work(code)
@@ -67,12 +69,10 @@ class _GenWorks:
         else:
             # make framework dict
             logger.debug(f"{self.api_class_name}: creating csv row for {self.code_type} \"{code}\"")
-            program_headers = ["citation-code", "make-md", "make-bib", "add-date"]
             if any(header not in header_addresses["info_headers"] for header in self.api_header_addresses):
                 logger.error("Bad Header", f"{self.api_class_name}: in settings.json, headers exist for {self.api_name} that are absent in \"info_headers\".")
             self.citation_dict = {header: missing_data_string for header in header_addresses["info_headers"] + program_headers}
-            logger.debug(f"{self.api_class_name}: adding content for \"make-md\", \"make-bib\", \"add-date\", and \"{self.code_type}\" fields for {self.code_type} \"{code}\"")
-            self.citation_dict["make-md"], self.citation_dict["make-bib"] = make_md, make_bib
+            logger.debug(f"{self.api_class_name}: adding content for \"add-date\" and \"{self.code_type}\" fields for {self.code_type} \"{code}\"")
             self.citation_dict["add-date"] = datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
             self.citation_dict[self.code_type] = code
             # add in header items
@@ -99,7 +99,7 @@ class _GenWorks:
 
     def _set_citation_code(self, custom_citation_code=None):
         if isinstance(custom_citation_code, str):
-            final_string = format_citation_code(custom_citation_code)
+            final_string = format_base_citation_code(custom_citation_code)
         else:
             matches = [(match.group(1), match.span()) for match in re.finditer(r"<([a-z\-]*?.?[a-z]*?)>", citation_code_format)]
             first_author_name = self.citation_dict["author"].split(array_separator, 1)[0]
@@ -123,7 +123,7 @@ class _GenWorks:
                 final_string += citation_code_format[slice(*non_match_indx_range)] 
                 final_string += str(self.citation_dict[group]) if group in self.citation_dict else special_keys[group]
             final_string += citation_code_format[slice(*non_match_indx_ranges[-1])]
-            final_string = format_citation_code(final_string)
+            final_string = format_base_citation_code(final_string)
         self.citation_dict["citation-code"] = final_string
         logger.debug(f"Created citation code base: \"{final_string}\"")
 
@@ -150,9 +150,10 @@ class _GenWorks:
                 logger.error(e, f"{self.api_class_name}: Exception while retrieving {self.code_type} \"{code}\"")
 
 class CrossRefWorks(_GenWorks):
+    etiquette = None
+    
     def __init__(self):
         super().__init__()
-        self.etiquette = None
         if all(x is not None for x in [project_name, project_version, project_url, contact_email]):
             logger.debug(f"{self.api_class_name}: polite api settings found in settings.json, using them for etiquette")
             self.etiquette = Etiquette(project_name, project_version, project_url, contact_email)
@@ -172,13 +173,16 @@ class CrossRefWorks(_GenWorks):
                 return data[2] if len(data) == 3 else missing_data_string
             case "abstract":
                 return replace_special_characters(data)
+            case "type":
+                return "article" if data == "journal-article" else data
         super()._process_data(header, data)
                 
 class _ISBNWorks(_GenWorks):
+    ettiquette = None
+
     def __init__(self, url):
         super().__init__()
         self.url = url
-        self.ettiquette = None
         if all(x is not None for x in [project_name, project_version, project_url, contact_email]):
             logger.debug(f"{self.api_class_name}: polite api settings found in settings.json, sharing with api as headers")
             self.ettiquette = {

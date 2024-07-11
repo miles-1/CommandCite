@@ -15,19 +15,12 @@ Start by downloading the files in this repository. Then, {{TODO}}
 
 ## Command Line Interface
 
-To cite a document by its DOI, run:
-
+To cite a document by its DOI or ISBN, run:
 ```bash
 cite 10.1126/science.359.6377.725
-# or...
-cite --doi 10.1126/science.359.6377.725
-```
-
-To cite a document by its ISBN, run:
-```bash
 cite 9780134092669
-# or...
-cite --isbn 9780134092669
+# or give both at the same time
+cite 10.1126/science.359.6377.725 9780134092669
 ```
 
 To set a specific `citation-code` for a document, run:
@@ -47,10 +40,9 @@ cite --update Johnson_2009a # to update documents for a specific document, or
 cite --update-all # to update across all citations
 ```
 
-If you have enabled markdown or bibliography generation, you can exclude specific citations from markdown generation or inclusion in a bibliography:
+To see descriptions of all flags, run:
 ```bash
-cite 10.1126/science.359.6377.725 --nomd # skips .md creation
-cite 10.1126/science.359.6377.725 --nobib # skips inclusion in bibliography file
+cite --help
 ```
 
 ## Settings

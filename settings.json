@@ -39,7 +39,8 @@
         ],
         "user-defined_properties": {
             "physical_copy": false,
-            "processed": false
+            "processed": false,
+            "tags": ["citation"]
         },
         "_comment": "directory: directory to save markdown files (path can be relative or absolute) | link_cited: whether to link a paper's md to the mds of cited papers in your citation csv, if they are present, in a `cited` property in the md | delete_unmatched_citations: whether to delete files in the markdown directory with names (citation codes) that are not cited in the citation csv | automate_pdf_link: whether to automatically add a link to the pdf of the paper in the md | included_properties: properties to include in the markdown file, must match name of attributes in csv (note when data is missing the property will be omitted entirely) | user-defined_properties: user-defined properties to include in the md with their default values. Can be used to add custom properties to the md, or to force the inclusion of properties when their respective entries have no data in the csv"
     },
@@ -94,9 +95,9 @@
             }
         },
         "file_encoding": {
-            "open_encoding": "utf-8-sig",
-            "close_encoding": "utf-8",
-            "_comment": "open_encoding: encoding to open files with | close_encoding: encoding to save files with"
+            "read_encoding": "utf-8-sig",
+            "write_encoding": "utf-8",
+            "_comment": "read_encoding: encoding to open files with | write_encoding: encoding to save files with"
         },
         "csv_headers": {
             "info_headers": [
@@ -132,7 +133,7 @@
                 "issue": "issue",
                 "url": "resource.primary.URL",
                 "cited-by-count": "is-referenced-by-count",
-                "type": "type",
+                "type": "type@",
                 "abstract": "abstract@",
                 "cited-dois": "refereence.*.DOI"
             },
