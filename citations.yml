@@ -1,0 +1,13 @@
+Hutson_2018a:
+  type: Article
+  title: "Artificial Intelligence Faces Reproducibility Crisis"
+  author: ['Hutson, Matthew']
+  date: 2018-2-16
+  page-range: 725-726
+  serial-number:
+    doi: 10.1126/science.359.6377.725
+  parent:
+    title:
+      value: "{Science}"
+    volume: 359
+    issue: 6377

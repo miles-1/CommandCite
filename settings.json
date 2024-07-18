@@ -1,9 +1,8 @@
 {
     "logging": {
         "log_level": 1,
-        "progress_indent": 2,
         "create_log_file": true,
-        "_comment": "log_level: 0=errors only, 1=errors and progress, 2=errors, progress and debug | progress_indent: indent used for progress messages | create_log_file: whether a log file should be created or not when running the program."
+        "_comment": "log_level: 0=errors only, 1=errors and progress, 2=errors, progress and debug | create_log_file: whether a log file should be created or not when running the program."
     },
 
     "citations_csv": {
@@ -72,7 +71,7 @@
         "project_version": null,
         "project_url": null,
         "contact_email": null,
-        "_comment": "provide your project details if you would like to use the CrossRef polite api (slightly faster), or if you plan to make frequent use of the OpenLibrary api. See links for details: https://www.crossref.org/documentation/retrieve-metadata/rest-api/tips-for-using-the-crossref-rest-api/ and "
+        "_comment": "Provide your project details if you would like to use the CrossRef polite api (slightly faster), or if you plan to make frequent use of the OpenLibrary api. See links for details: https://www.crossref.org/documentation/retrieve-metadata/rest-api/tips-for-using-the-crossref-rest-api/ and https://openlibrary.org/developers/api"
     },
 
     "advanced": {
@@ -81,7 +80,7 @@
             "crossref": {
                 "url": "https://api.crossref.org/works/",
                 "_example": "https://api.crossref.org/works/10.1126/science.359.6377.725",
-                "_comment": "The URL for the Crossref api. Can append DOI. Not used in script, crossref.restful used instead."
+                "_comment": "The URL for the Crossref api. Can append DOI. Not used in script, crossref.restful used instead, which returns the \"message\" property, not the whole response."
             },
             "openlibrary": {
                 "url": "https://openlibrary.org/search.json?q=isbn:",

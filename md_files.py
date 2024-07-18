@@ -1,93 +1,103 @@
-from aux import logger, settings, md_dir_name
+from aux import logger, md_dir_name, \
+    array_separator, concat_separator, \
+    link_cited, delete_unmatched_citations, automate_pdf_link_doi, automate_pdf_link_isbn, included_properties, user_defined_properties, \
+    read_encoding, write_encoding, \
+    has_data, make_md_link
 from os import remove, listdir, rename
 from os.path import join
 
-try:
-    logger.debug("Beginning to load settings from settings.json for biblography_files.py")
-    # citations csv settings
-    logger.debug("Loading citations csv settings from settings.json")
-    missing_data_string = settings["citations_csv"]["missing_data_string"]
-    array_separator = settings["citations_csv"]["array_separator"]
-    concat_separator = settings["citations_csv"]["concat_separator"]
-    # md settings
-    logger.debug("Loading markdown settings from settings.json")
-    link_cited = settings["markdown"]["link_cited"]
-    delete_unmatched_citations = settings["markdown"]["delete_unmatched_citations"]
-    automate_pdf_link_doi = settings["markdown"]["automate_pdf_link"]["doi"]
-    automate_pdf_link_isbn = settings["markdown"]["automate_pdf_link"]["isbn"]
-    included_properties = settings["markdown"]["included_properties"]
-    user_defined_properties = settings["markdown"]["user-defined_properties"]
-    # advanced settings
-    logger.debug("Loading advanced settings from settings.json")
-    info_headers = settings["advanced"]["csv_headers"]["info_headers"]
-    read_encoding = settings["advanced"]["file_encoding"]["read_encoding"]
-    write_encoding = settings["advanced"]["file_encoding"]["write_encoding"]
-    delete_unmatched_entries = settings["bibliography"]["delete_unmatched_entries"]
-    logger.debug("Finished loading settings from settings.json for biblography_files.py")
-except KeyError as e:
-    logger.error(e, "settings.json file is missing required keys")
 
 class Markdowns:
     dir_name = md_dir_name
     yaml_separator = "---\n"
     indent = " " * 2
+    current_md_files = None
 
     def __init__(self):
+        self.edited_md_files = {"created": [], "code_changed": [], "updated_or_deleted": {}}
         logger.debug("Getting all markdown file names for Markdowns class")
-        self.current_md_files = [path for path in listdir(self.dir_name) if path.endswith(".md")]
+        if self.dir_name is not None:
+            self.current_md_files = [path for path in listdir(self.dir_name) if path.endswith(".md")]
 
     def create_file(self, citation_dict):
         if self.dir_name is None:
             return
         code = citation_dict["citation-code"]
         path = self._get_file_path(code)
+        self.edited_md_files["created"].append(path)
         with open(path, "w", encoding=write_encoding) as f:
-            f.write(self.yaml_separator + self._get_header_yaml(citation_dict) + self.yaml_separator)
+            f.write(self.yaml_separator + self._get_yaml_frontmatter(citation_dict) + self.yaml_separator)
 
     def delete_unmatched_files(self, citation_codes_lst):
         if self.dir_name is None or not delete_unmatched_citations:
             return
         for file in self.current_md_files:
-            code = file[:-3]
+            code = file[:-3] # remove .md
             if code not in citation_codes_lst:
-                remove(self._get_file_path(code))
+                file_path = self._get_file_path(code)
+                with open(file_path, "r", encoding=read_encoding) as f:
+                    self.edited_md_files["updated_or_deleted"][file_path] = f.read()
+                logger.progress(f"Deleting markdown file {file_path.rsplit('/',1)[1]} since it is missing from the citations csv")
+                remove(file_path)
 
     def update_file(self, citation_dict):
         if self.dir_name is None:
             return
         code = citation_dict["citation-code"]
-        path = self._get_file_path(code)
-        with open(path, "r", encoding=read_encoding) as f:
-            content_lst = f.read().split(self.yaml_separator)
-        content_lst[1] = self._get_header_yaml(citation_dict)
-        with open(path, "w", encoding=write_encoding) as f:
+        file_path = self._get_file_path(code)
+        with open(file_path, "r", encoding=read_encoding) as f:
+            file_content = f.read()
+        self.edited_md_files["updated_or_deleted"][file_path] = file_content
+        content_lst = file_content.split(self.yaml_separator)
+        content_lst[1] = self._get_yaml_frontmatter(citation_dict)
+        with open(file_path, "w", encoding=write_encoding) as f:
             f.write(self.yaml_separator.join(content_lst))
 
-    def change_citation_code(self, current_code, new_code, citing_codes):
+    def change_citation_code(self, old_code, new_code, cited_by_lst):
         if self.dir_name is None:
             return
-        old_name, new_name = [self._get_file_path(code) for code in (current_code, new_code)]
-        rename(old_name, new_name)
-        if automate_pdf_link_doi or automate_pdf_link_isbn:
-            with open(new_name, "r", encoding=read_encoding) as f:
-                content = f.read().replace(current_code + ".pdf", new_code + ".pdf")
-            with open(new_name, "w", encoding=write_encoding) as f:
-                f.write(content)
+        old_file_path, new_file_path = [self._get_file_path(code) for code in (old_code, new_code)]
+        # rename file
+        rename(old_file_path, new_file_path)
+        # collect old content
+        with open(new_file_path, "r", encoding=read_encoding) as f:
+            old_content = f.read()
+            self.edited_md_files["code_changed"].append([new_file_path, old_file_path, old_content])
+        # update pdf link in yaml frontmatter if necessary
+        if (automate_pdf_link_doi or automate_pdf_link_isbn) and make_md_link(old_code, pdf=True) in old_content:
+            with open(new_file_path, "w", encoding=write_encoding) as f:
+                new_content = old_content.replace(make_md_link(old_code, pdf=True), make_md_link(new_code, pdf=True))
+                f.write(new_content)
+        # update md docs that cite this citation code
         if link_cited:
-            for code in citing_codes:
-                file_name = self._get_file_path(code)
-                with open(file_name, "r", encoding=read_encoding) as f:
-                    content = f.read().replace(f"\"[[{current_code}]]\"", f"\"[[{new_code}]]\"")
-                with open(file_name, "w", encoding=write_encoding) as f:
-                    f.write(content)
+            for code in cited_by_lst:
+                file_path = self._get_file_path(code)
+                with open(file_path, "r", encoding=read_encoding) as f:
+                    old_content = f.read()
+                if file_path not in self.edited_md_files["updated_or_deleted"] and file_path not in self.edited_md_files["created"]:
+                    self.edited_md_files["updated_or_deleted"][file_path] = old_content
+                new_content = old_content.replace(make_md_link(old_code), make_md_link(new_code))
+                with open(file_path, "w", encoding=write_encoding) as f:
+                    f.write(new_content)
     
-    def _get_header_yaml(self, citation_dict, cited_links_lst=None):
+    def revert_files(self):
+        for file_path in self.edited_md_files["created"]:
+            remove(file_path)
+        for new_file_path, old_file_path, old_content in self.edited_md_files["code_changed"]:
+            remove(new_file_path)
+            with open(old_file_path, "w", encoding=write_encoding) as f:
+                f.write(old_content)
+        for file_path, content in self.edited_md_files["updated_or_deleted"].items():
+            with open(old_file_path, "w", encoding=write_encoding) as f:
+                f.write(content)
+
+    def _get_yaml_frontmatter(self, citation_dict, cited_links_lst=None):
         yaml_text = ""
         get_detail = lambda key, string=None: f"{key}: {citation_dict[key] if string is None else string}\n"
-        make_lst = lambda lst: "\n" + self.indent + "- " + ("\n" + self.indent + "- ").join(lst) + "\n"
+        make_lst = lambda lst: "\n" + self.indent + "- " + ("\n" + self.indent + "- ").join(lst)
         # add properties from citation_dict
         for prop in included_properties:
-            if citation_dict[prop] not in ("", missing_data_string):
+            if has_data(citation_dict[prop]):
                 value = citation_dict[prop]
                 if prop == "title":
                     value = "\"" + value + "\""
@@ -95,9 +105,9 @@ class Markdowns:
                     value = make_lst([name.replace(concat_separator, ", ") for name in value.split(array_separator)])
                 yaml_text += get_detail(prop, value)
         # add link to pdf
-        if (automate_pdf_link_doi and citation_dict["doi"] not in ("", missing_data_string)) or \
-            (automate_pdf_link_isbn and citation_dict["isbn"] not in ("", missing_data_string)):
-            yaml_text += get_detail("pdf-link", f"\"[[{citation_dict['citation-code'] + ".pdf"}]]\"")
+        if (automate_pdf_link_doi and has_data(citation_dict["doi"])) or \
+            (automate_pdf_link_isbn and has_data(citation_dict["isbn"])):
+            yaml_text += get_detail("pdf-link", make_md_link(citation_dict['citation-code'], pdf=True))
         # add user-defined properties
         for prop, value in user_defined_properties.items():
             if isinstance(value, bool):
@@ -107,8 +117,8 @@ class Markdowns:
             yaml_text += get_detail(prop, value)
         # add links to cited documents
         if cited_links_lst is not None and link_cited:
-            yaml_text += get_detail("citations", make_lst((f"\"[[{code}]]\"" for code in cited_links_lst)))
-        pass
+            yaml_text += get_detail("citations", make_lst((make_md_link(code) for code in cited_links_lst)))
+        return yaml_text
 
     def _get_file_path(self, citation_code):
         return join(self.dir_name, citation_code + ".md")

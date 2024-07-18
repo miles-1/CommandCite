@@ -1,4 +1,4 @@
-# Citation Manager
+# Command Cite - a simple-to-use command-line citation manager
 
 ## Description
 
@@ -12,6 +12,12 @@ A command line tool that takes DOIs and ISBNs to query databases for citation de
 ## How to Set Up
 
 Start by downloading the files in this repository. Then, {{TODO}}
+
+The package dependencies for this program 
+
+```bash
+pip install crossrefapi # installs crossref package for DOIs
+```
 
 ## Command Line Interface
 

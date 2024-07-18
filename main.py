@@ -1,87 +1,90 @@
-from api import CrossRefWorks, GoogleBooksWorks, OpenLibraryWorks
+from md_files import Markdowns
+from bibliography_files import BibtexBib, HayagrivaBib
+from api import CiteWorks
 from csv_file import CSV
-from aux import logger, settings, is_valid_citation_code, format_arguments, format_base_citation_code
+from aux import logger, verify_arguments, has_data, CommandCiteError
 import sys
 
-try:
-    logger.debug("Loading settings from settings.json into main.py")
-    update_blanks_automatically = settings["citations_csv"]["update_blanks_automatically"]
-    logger.debug("Finished loading settings from settings.json into main.py")
-except KeyError as e:
-    logger.error(e, "Missing keys in settings.json")
-
-def verify_arguments(arguments):
-    update_all_entries = False
-    entries_to_update = []
-    entries_to_rename = {}
-    # check for arguments
-    if len(arguments) == 0:
-        logger.error("No Arguments", "This program requires at least one argument to run")
-    if "--help" in arguments:
-        print("""Tags and their use:
---help                                     Print this message
---update-all                               Fill in any blanks for program-managed headers of citations csv file for all rows, and update markdowns and bibliography files if they exist
---update [citation-code]                   Same as --update-all but instead for specified [citation-code]
---rename [citation-code] [new-base-code]   Change the citation code for the given [citation-code] to have a new one, with base code specified by [new-base-code] (no suffix should be included)
-[doi-or-isbn] --setcode [new-base-code]    For a given DOI or ISBN, set the citation code to have a base code of [new-base-code]
-
-Note that --help can only be run alone, and --update-all and --update cannot be used together. Other than that, any sequence or repetition of DOIs or ISBNs can be given to this program.""")
-        sys.exit(1)
-    # handle --update-all tag
-    if "--update-all" in arguments or update_blanks_automatically:
-        for _ in range(arguments.count("--update-all")):
-            arguments.pop(arguments.index("--update-all"))
-        if "--update" in arguments:
-            logger.error("Bad Flag Use", "The \"--update\" flag is not allowed if \"--update-all\" is used or \"update_blanks_automatically\" is enabled in settings.json")
-        update_all_entries = True
-        logger.debug("All entries are set to update")
-    # handle --update tag
-    if "--update" in arguments:
-        for _ in range(arguments.count["--update"]):
-            tag_indx = arguments.index("--update")
-            if len(arguments) <= tag_indx + 1:
-                logger.error("Bad Flag Use", "The \"--update\" flag must be followed by a valid citation code")
-            citation_code = arguments[tag_indx + 1]
-            if not is_valid_citation_code(citation_code):
-                logger.error("Bad Flag Use", f"The \"--update\" flag must be followed by a valid citation code, and \"{citation_code}\" is an invalid citation code")
-            for _ in range(2):
-                arguments.pop(tag_indx) # remove tag and citation code
-            entries_to_update.append(citation_code)
-        logger.debug(f"The following entries are set to update: {', '.join(entries_to_update)}")
-    # handle --rename tag
-    if "--rename" in arguments:
-        for _ in range(arguments.count("--rename")):
-            tag_indx = arguments.index("--rename")
-            if len(arguments) <= tag_indx + 2 or not is_valid_citation_code(arguments[tag_indx+1]) or arguments[tag_indx+2].startswith("--"):
-                if len(arguments) <= tag_indx + 2:
-                    extra_info = ""
-                elif not is_valid_citation_code(arguments[tag_indx+1]):
-                    extra_info = f" However, the citation code \"{arguments[tag_indx+1]}\" is not valid."
-                else:
-                    extra_info = f" However, the tag \"{arguments[tag_indx+2]}\" was found where the base code should be."
-                logger.error("Bad Flag Use", f"The \"--update\" flag must be followed by a valid citation code and a new base citation code (no suffix) that will serve as its replacement.{extra_info}")
-            entries_to_rename[arguments[tag_indx + 1]] = format_base_citation_code(arguments[tag_indx + 2])
-            for _ in range(3):
-                arguments.pop(tag_indx) # remove tag, citation code, and new base citation code
-    # collect dois and isbns
-    return update_all_entries, entries_to_update, entries_to_rename, format_arguments(arguments)
-
-try:
-    arguments = sys.argv[1:]
-    update_all_entries, entries_to_update, entries_to_rename, entry_codes = verify_arguments(arguments)
+if __name__ == "__main__":
     csv = CSV()
-    if update_all_entries:
-        entries_to_update = csv.get_entries_needing_updating()
-    if len(entries_to_update) > 0:
-        # TODO: update each code, update mds and bibs
-        pass
-    if len(entries_to_rename) > 0:
-        for current_code, new_base_code in entries_to_rename.items():
-            csv.change_citation_code(current_code, new_base_code)
-    if len(entry_codes) > 0:
-        # TODO: add new entry codes, add mds, add to bibs
-        pass
-    csv.save_file()
-except Exception as e:
-    csv.save_file(revert_to_old=True)
-    logger.error(e, "unexpected error encountered")
+    api = CiteWorks()
+    md = Markdowns()
+    bibtex, hayagriva = BibtexBib(), HayagrivaBib()
+
+    try:
+        # setup
+        arguments = sys.argv[1:]
+        update_all_entries, entries_to_update, entries_to_rename, entry_codes = verify_arguments(arguments)
+
+        # update entries
+        if update_all_entries:
+            entries_to_update = csv.get_entries_needing_updating()
+        if len(entries_to_update) > 0:
+            for code in entries_to_update:
+                # get old citation dict
+                citation_dict = csv.get_entry(code)
+                # get new citation dict
+                if has_data(citation_dict["doi"]):
+                    id_num = citation_dict["doi"]
+                    id_num_type = "doi"
+                elif has_data(citation_dict["isbn"]):
+                    id_num = citation_dict["isbn"]
+                    id_num_type = "isbn"
+                new_citation_dict = api.get_csv_row(id_num, id_num_type)
+                if new_citation_dict is not None:
+                    # update csv
+                    csv.update_entry(code, new_citation_dict)
+                    new_citation_dict = csv.get_entry(code)
+                    # update mds
+                    md.update_file(new_citation_dict)
+                    # update bibliographies
+                    bibtex.create_or_update_citation(new_citation_dict)
+                    hayagriva.create_or_update_citation(new_citation_dict)
+
+        # rename entries
+        if len(entries_to_rename) > 0:
+            for current_code, new_base_code in entries_to_rename.items():
+                # change code in csv
+                cited_by = csv.get_codes_that_cite_code(current_code)
+                new_code = csv.change_citation_code(current_code, new_base_code)
+                # change code in md
+                md.change_citation_code(current_code, new_code, cited_by)
+                # change code in bibliographies
+                bibtex.change_citation_code(current_code, new_code)
+                hayagriva.change_citation_code(current_code, new_code)
+
+        # make new entries
+        if len(entry_codes) > 0:
+            existing_codes = csv.get_all_id_nums()
+            for entry_info in entry_codes:
+                id_num, id_num_type = entry_info[:2]
+                if id_num in existing_codes[id_num_type]:
+                    logger.progress(f"The {id_num_type} {id_num} is already found in the citations csv. Skipping.")
+                    continue
+                citation_dict = api.get_csv_row(*entry_info)
+                if citation_dict is not None:
+                    # add to csv
+                    citation_dict = csv.add_from_api(citation_dict)
+                    # add md file
+                    md.create_file(citation_dict)
+                    # add bibliography entries
+                    bibtex.create_or_update_citation(citation_dict)
+                    hayagriva.create_or_update_citation(citation_dict)
+
+        # delete files and entries for missing data
+        citation_code_lst = csv.get_all_citation_codes()
+        md.delete_unmatched_files(citation_code_lst)
+        bibtex.delete_unmatched_citations(citation_code_lst)
+        hayagriva.delete_unmatched_citations(citation_code_lst)
+
+        # save file
+        csv.save_file()
+        bibtex.save_file()
+        hayagriva.save_file()
+
+    except Exception as e:
+        # for file_class in (csv, bibtex, hayagriva):
+        #     file_class.save_file(revert_to_old=True)
+        # md.revert_files()
+        if not isinstance(e, CommandCiteError):
+            logger.error(e, "", kill=True)

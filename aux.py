@@ -1,14 +1,17 @@
-import traceback
-import json
-import sys
 import re
-from os.path import join, dirname, isabs
+import sys
+import json
+import traceback
+from os.path import join, dirname, isabs, exists
 
 # settings
 with open("settings.json") as settings_file:
     settings = json.load(settings_file)
 
 # logger
+class CommandCiteError(Exception):
+    pass
+
 class Log:
     log_level = settings["logging"]["log_level"]
     create_log_file = settings["logging"]["create_log_file"]
@@ -20,7 +23,7 @@ class Log:
             self.error("ValueError", "log_level in settings.json must be between 0 and 2")
         self.debug("Logger created")
     
-    def error(self, error, message):
+    def error(self, error:str|Exception, message:str, kill:bool=False):
         error_traceback = ""
         if isinstance(error, Exception):
             error = error.__class__.__name__
@@ -30,15 +33,18 @@ class Log:
             self.log.write(error_str + "\n")
             self.log.close()
         print(error_str)
-        sys.exit(2)
+        if kill:
+            sys.exit(2)
+        else:
+            raise CommandCiteError
     
-    def progress(self, message):
+    def progress(self, message:str):
         if self.create_log_file:
             self.log.write(message + "\n")
         if self.log_level >= 1:
             print(message)
     
-    def debug(self, message):
+    def debug(self, message:str):
         message = f"> DEBUG: {message}"
         if self.create_log_file:
             self.log.write(message + "\n")
@@ -47,26 +53,64 @@ class Log:
 
 logger = Log()
 
-def _get_path(settings_dict, extension="", check_field=None):
+def _get_path(settings_dict:dict, extension:str="", check_field:str|None=None):
     directory = settings_dict["directory"]
     directory = directory if isabs(directory) else join(dirname(sys.argv[0]), directory)
+    if not exists(directory):
+        logger.error("Folder Missing", f"The folder {directory} does not exist")
     complete_path = join(directory, settings_dict["filename"]) + extension if extension else directory
-    return complete_path if not isinstance(check_field, str) or settings_dict[check_field] else None
+    return complete_path if check_field is None or settings_dict[check_field] else None
 
 try:
     logger.debug("Beginning to load settings from settings.json for aux.py")
     # citations csv settings
     logger.debug("Loading citations csv settings from settings.json")
+    csv_file_name = _get_path(settings["citations_csv"], extension=".csv")
     missing_data_string = settings["citations_csv"]["missing_data_string"]
     array_separator = settings["citations_csv"]["array_separator"]
     concat_separator = settings["citations_csv"]["concat_separator"]
     title_case_titles = settings["citations_csv"]["title_case_titles"]
-    # file names
-    logger.debug("Loading filenames from settings.json")
-    csv_file_name = _get_path(settings["citations_csv"], extension=".csv")
+    update_blanks_automatically = settings["citations_csv"]["update_blanks_automatically"]
+    citation_code_format = settings["citations_csv"]["citation-code_format"]
+    # markdown settings
+    logger.debug("Loading markdown settings from settings.json")
     md_dir_name = _get_path(settings["markdown"], check_field="make_md")
+    link_cited = settings["markdown"]["link_cited"]
+    delete_unmatched_citations = settings["markdown"]["delete_unmatched_citations"]
+    automate_pdf_link_doi = settings["markdown"]["automate_pdf_link"]["doi"]
+    automate_pdf_link_isbn = settings["markdown"]["automate_pdf_link"]["isbn"]
+    included_properties = settings["markdown"]["included_properties"]
+    user_defined_properties = settings["markdown"]["user-defined_properties"]
+    # bibliography settings
+    logger.debug("Loading bibliography settings from settings.json")
     bibtex_file_name = _get_path(settings["bibliography"], extension=".bib", check_field="make_bibtex")
     hayagriva_file_name = _get_path(settings["bibliography"], extension=".yml", check_field="make_hayagriva")
+    delete_unmatched_entries = settings["bibliography"]["delete_unmatched_entries"]
+    # network settings
+    logger.debug("Loading network settings from settings.json")
+    timeout = settings["network"]["timeout"]
+    num_retries = settings["network"]["num_retries"]
+    retry_delay = settings["network"]["retry_delay"]
+    # api preference settings
+    logger.debug("Loading api preference settings from settings.json")
+    primary_isbn = settings["api_preference"]["primary_isbn"]
+    secondary_isbn = settings["api_preference"]["secondary_isbn"]
+    # polite api settings
+    logger.debug("Loading polite api settings from settings.json")
+    project_name = settings["polite_api"]["project_name"]
+    project_version = settings["polite_api"]["project_version"]
+    project_url = settings["polite_api"]["project_url"]
+    contact_email = settings["polite_api"]["contact_email"]
+    # advanced settings
+    logger.debug("Loading advanced settings from settings.json")
+    openlibrary_url = settings["advanced"]["api"]["openlibrary"]["url"]
+    googlebooks_url = settings["advanced"]["api"]["googlebooks"]["url"]
+    read_encoding = settings["advanced"]["file_encoding"]["read_encoding"]
+    write_encoding = settings["advanced"]["file_encoding"]["write_encoding"]
+    info_headers = settings["advanced"]["csv_headers"]["info_headers"]
+    header_addresses = settings["advanced"]["csv_headers"]
+    if any(x not in header_addresses for x in ["crossref", "openlibrary", "googlebooks"]):
+        logger.error("settings.json file is missing required keys in advanced.csv_headers")
     logger.debug("Finished loading settings from settings.json for aux.py")
 except KeyError as e:
     logger.error(e, "settings.json file is missing required keys")
@@ -75,18 +119,18 @@ except KeyError as e:
 program_headers = ["citation-code", "add-date"]
 
 # title and abstract formatting functions
-def format_title(string):
+def format_title(string:str) -> str:
     """Replaces special characters and capitalizes if specified in settings.json"""
     if string == missing_data_string:
         return string
     string = replace_special_characters(string)
     return make_smart_title_case(string) if title_case_titles else string
 
-def remove_html_tags(string):
+def remove_html_tags(string:str) -> str:
     """Removes any HTML tags (aka any tags with <>) from string."""
     return re.sub(r"<.*?>", "", string)
 
-def replace_special_characters(string):
+def replace_special_characters(string:str) -> str:
     """Replaces special characters, HTML tags, and HTML encoded characters in a string"""
     string = remove_html_tags(string)
     replacement_dict = {
@@ -105,7 +149,7 @@ def replace_special_characters(string):
         string = string.replace(character, replacement)
     return string
 
-def make_smart_title_case(string):
+def make_smart_title_case(string:str) -> str:
     """Gives title case for string besides ignored words, AND replaces special characters"""
     lower_words = [
         "a",
@@ -145,10 +189,10 @@ def make_smart_title_case(string):
     return " ".join(words)
 
 # author name formatting function
-def format_names(names):
+def format_names(names:list) -> str:
     return array_separator.join(split_name(name) for name in names)
 
-def split_name(name):
+def split_name(name:str) -> str:
     """Attempts to collect family and given name connected by the \"concat_separator\" by splitting the given string"""
     if ". " in name:
         name_lst = list(reversed(name.rsplit(". ", 1)))
@@ -158,7 +202,7 @@ def split_name(name):
     return concat_separator.join(name_lst)
 
 # isbn formatting function
-def format_isbn(isbn):
+def format_isbn(isbn:str) -> str:
     """Formats ISBNs to remove common delimiters and reduce to numbers"""
     isbn = isbn.strip().replace(" ", "").lower()
     if isbn.startswith("isbn"):
@@ -171,20 +215,20 @@ def format_isbn(isbn):
     return isbn
 
 # citation code functions
-def format_base_citation_code(code):
+def format_base_citation_code(code:str) -> str:
     return re.sub(r"([a-z])\b", r"\1_",
                   re.sub("\\s+", "_", 
                          re.sub(r"[\\/:;*\[\]?\"'<>|]", "", 
                                 code)))
 
-def get_citation_code_parts(code):
+def get_citation_code_parts(code:str) -> str:
     base_code = re.sub(r"[a-z]+\b", "", code)
     code_suffix = re.match(r".*?([a-z]+)\b", code)
     if code_suffix is not None:
         code_suffix = code_suffix.group(1)
     return base_code, code_suffix
 
-def get_code_suffix_from_int(num):
+def get_code_suffix_from_int(num:int) -> str:
     """
     Converts number (integer) to letter suffix. 
     1 gives a, 2 gives b, ... 26 gives z, 27 gives aa, ...
@@ -199,7 +243,7 @@ def get_code_suffix_from_int(num):
         num = num // 26
     return suffix
 
-def get_int_from_code_suffix(suffix):
+def get_int_from_code_suffix(suffix:str) -> int:
     """
     Converts letter suffix to number (integer).
     a gives 1, b gives 2, ... z gives 26, aa gives 27, ...
@@ -211,13 +255,13 @@ def get_int_from_code_suffix(suffix):
         number += (ord(char) - ord("a") + 1) * (26 ** i)
     return number
 
-def is_valid_citation_code(code):
+def is_valid_citation_code(code:str) -> bool:
     """Verifies if a full citation code is of a valid format."""
     base_code, code_suffix = get_citation_code_parts(code)
     return code_suffix is not None and format_base_citation_code(base_code) == base_code
 
-# data retrieval function
-def get_data_by_address(data, address):
+# data retrieval functions
+def get_data_by_address(data:dict|list|str|int|bool, address:str) -> tuple[bool,any]:
     """Return the location at a given address, or missing_data_string if missing."""
     if match := re.match(r".*\[.*?([\.\*\[\]]).*?\].*", address):
         logger.error("Misuse of [] in Response Address", f"The [] address notation in \"csv_headers\" of settings.json should only hold individual keys or indices separated by commas, but contained a \"{match.group(1)}\".")
@@ -275,29 +319,120 @@ def get_data_by_address(data, address):
     # if all address options returned missing data
     return needs_processing, missing_data_string
 
-# program argument processing function
-def format_arguments(args, flag="--setcode"):
+def has_data(data:str) -> bool:
+    return data not in ("", missing_data_string)
+
+# yaml frontmatter link function
+def make_md_link(string:str, pdf:bool=False) -> str:
+    extension = ".pdf" if pdf else ""
+    return f"\"[[{string}{extension}]]\""
+
+# functions for main
+def format_id_num_arguments(args:list[str], flag:str="--setcode") -> tuple:
     result = []
     i = 0
     while i < len(args):
-        entry_code = args[i]
-        if entry_code.startswith("--"):
-            logger.error("Unrecognized Flag", f"The flag \"{entry_code}\" is not recognized. Only \"--update\", \"--update-all\", \"--setcode\", \"--rename\", and \"--help\" are recognized.")
-        entry_code_type = get_entry_code_type(entry_code)
-        if entry_code_type is None:
-            logger.error("Unrecognized Argument", f"The argument {entry_code} was expected to be a DOI or an ISBN, but follows the format of neither. DOIs take the form \"10.xxxx/abcd\", whereas ISBNs are just numbers.")
+        id_num = args[i]
+        if id_num.startswith("--"):
+            logger.error("Unrecognized Flag", f"The flag \"{id_num}\" is not recognized. Only \"--update\", \"--update-all\", \"--setcode\", \"--rename\", and \"--help\" are recognized.")
+        id_num_type = get_id_num_type(id_num)
+        if id_num_type is None:
+            logger.error("Unrecognized Argument", f"The argument {id_num} was expected to be a DOI or an ISBN, but follows the format of neither. DOIs take the form \"10.xxxx/abcd\", whereas ISBNs are just numbers.")
         if i < len(args) - 1 and args[i+1] == flag:
             custom_base_code = format_base_citation_code(args[i+1])       
-            result.append((entry_code, entry_code_type, custom_base_code))
+            result.append((id_num, id_num_type, custom_base_code))
             i += 3
         else:
-            result.append((entry_code, entry_code_type, None))
+            result.append((id_num, id_num_type, None))
             i += 1
     return result
 
-def get_entry_code_type(code):
+def get_id_num_type(code:str) -> str|None:
     if re.match(r"10\.\d{4,}/.+", code) is not None:
         return "doi"
     if format_isbn(code).isdigit():
         return "isbn"
     return None
+
+def verify_arguments(arguments:list[str]) -> tuple:
+    update_all_entries = False
+    entries_to_update = []
+    entries_to_rename = {}
+    # check for arguments
+    if len(arguments) == 0:
+        logger.error("No Arguments", "This program requires at least one argument to run")
+    if "--help" in arguments:
+        print("""FLAGS:
+              
+--help                                     Print this message
+              
+--update-all                               Fill in any blanks for program-managed 
+                                           headers of citations csv file for all 
+                                           rows, and update markdowns and bibliography 
+                                           files if they exist
+              
+--update [citation-code]                   Same as --update-all but instead for 
+                                           specified [citation-code]
+              
+--rename [citation-code] [new-base-code]   Change the citation code for the 
+                                           given [citation-code] to have a new one,
+                                           with base code specified by [new-base-code] 
+                                           (no suffix should be included)
+              
+[doi-or-isbn] --setcode [new-base-code]    For a given DOI or ISBN, set the citation 
+                                           code to have a base code of [new-base-code]
+
+Other than the restrictions listed below, any sequence or repetition of flags, DOIs 
+or ISBNs can be given to this program.
+
+NOTES:
+              
+    --help cannot be used in combination with other flags
+              
+    --update-all and --update cannot be used together
+              
+    For markdown documents, --rename only updates the specified code in file names 
+    and the yaml frontmatter, not note text""")
+        sys.exit(1)
+    # handle --update-all tag
+    if "--update-all" in arguments or update_blanks_automatically:
+        for _ in range(arguments.count("--update-all")):
+            arguments.pop(arguments.index("--update-all"))
+        if "--update" in arguments:
+            logger.error("Bad Flag Use", "The \"--update\" flag is not allowed if \"--update-all\" is used or \"update_blanks_automatically\" is enabled in settings.json")
+        update_all_entries = True
+        logger.debug("All entries are set to update")
+    # handle --update tag
+    if "--update" in arguments:
+        for _ in range(arguments.count["--update"]):
+            tag_indx = arguments.index("--update")
+            if len(arguments) <= tag_indx + 1:
+                logger.error("Bad Flag Use", "The \"--update\" flag must be followed by a valid citation code")
+            citation_code = arguments[tag_indx + 1]
+            if not is_valid_citation_code(citation_code):
+                logger.error("Bad Flag Use", f"The \"--update\" flag must be followed by a valid citation code, and \"{citation_code}\" is an invalid citation code")
+            for _ in range(2):
+                arguments.pop(tag_indx) # remove tag and citation code
+            if citation_code not in entries_to_update:
+                entries_to_update.append(citation_code)
+        logger.debug(f"The following entries are set to update: {', '.join(entries_to_update)}")
+    # handle --rename tag
+    if "--rename" in arguments:
+        for _ in range(arguments.count("--rename")):
+            tag_indx = arguments.index("--rename")
+            if len(arguments) <= tag_indx + 2 or not is_valid_citation_code(arguments[tag_indx+1]) or arguments[tag_indx+2].startswith("--"):
+                if len(arguments) <= tag_indx + 2:
+                    extra_info = ""
+                elif not is_valid_citation_code(arguments[tag_indx+1]):
+                    extra_info = f" However, the citation code \"{arguments[tag_indx+1]}\" is not valid."
+                else:
+                    extra_info = f" However, the tag \"{arguments[tag_indx+2]}\" was found where the base code should be."
+                logger.error("Bad Flag Use", f"The \"--update\" flag must be followed by a valid citation code and a new base citation code (no suffix) that will serve as its replacement.{extra_info}")
+            old_code, new_code = arguments[tag_indx+1], format_base_citation_code(arguments[tag_indx+2])
+            if old_code in entries_to_rename:
+                logger.debug(f"Code {old_code} already marked for renaming. Updating to rename to {new_code}")
+            entries_to_rename[old_code] = new_code
+            for _ in range(3):
+                arguments.pop(tag_indx) # remove tag, citation code, and new base citation code
+    # collect dois and isbns
+    return update_all_entries, entries_to_update, entries_to_rename, format_id_num_arguments(arguments)

@@ -1,41 +1,33 @@
-from aux import logger, settings, hayagriva_file_name, bibtex_file_name
+from aux import logger, hayagriva_file_name, bibtex_file_name, \
+    array_separator, concat_separator, \
+    read_encoding, write_encoding, \
+    has_data
 import re
+from os.path import exists
 
-try:
-    logger.debug("Beginning to load settings from settings.json for biblography_files.py")
-    # citations csv settings
-    logger.debug("Loading citations csv settings from settings.json")
-    missing_data_string = settings["citations_csv"]["missing_data_string"]
-    array_separator = settings["citations_csv"]["array_separator"]
-    concat_separator = settings["citations_csv"]["concat_separator"]
-    # advanced settings
-    logger.debug("Loading advanced settings from settings.json")
-    info_headers = settings["advanced"]["csv_headers"]["info_headers"]
-    read_encoding = settings["advanced"]["file_encoding"]["read_encoding"]
-    write_encoding = settings["advanced"]["file_encoding"]["write_encoding"]
-    delete_unmatched_entries = settings["bibliography"]["delete_unmatched_entries"]
-    logger.debug("Finished loading settings from settings.json for biblography_files.py")
-except KeyError as e:
-    logger.error(e, "settings.json file is missing required keys")
 
 class _Bibliography:
     delim = "\n\n"
     file_name = None
     indent = " " * 2
 
-    def __init__(self, citation_type):
-        self.citation_file_type, self.citation_class = citation_type, self.__class__.__name__
+    def __init__(self):
+        self.entry_dict, self.backup_entry_dict = {}, {}
+        self.citation_class = self.__class__.__name__
+        self.citation_file_type = self.citation_class[:-3].lower()
         if self.citation_file_type == "hayagriva":
             self.file_name = hayagriva_file_name
         elif self.citation_file_type == "bibtex":
             self.file_name = bibtex_file_name
-        if self.file_name is not None:
+        if self.file_name is not None and exists(self.file_name):
             logger.debug(f"Reading contents of {self.citation_file_type} file")
+            pattern = r"@[a-z]+?{(.+?),\n" if self.citation_file_type == "bibtex" else r"(.+?):\n"
+            get_code = lambda entry: re.search(pattern, entry).group(1)
             with open(self.file_name, "r", encoding=read_encoding) as f:
-                pattern = r"@[a-z]+?{(.+?),\n" if self.citation_file_type == "bibtex" else r"(.+?):\n"
-                get_code = lambda entry: re.search(pattern, entry).group(1)
-                self.entry_dict = {get_code(entry): entry for entry in f.read().split(self.delim)}
-            self.backup_entry_dict = self.entry_dict.copy()
+                file_contents = f.read()
+            if file_contents.strip() != "":
+                self.entry_dict = {get_code(entry): entry for entry in file_contents.split(self.delim)}
+                self.backup_entry_dict = self.entry_dict.copy()
     
     def create_or_update_citation(self, citation_dict):
         if self.file_name is None:
@@ -48,6 +40,7 @@ class _Bibliography:
             return
         for code in self.entry_dict:
             if code not in citation_code_lst:
+                logger.progress(f"Deleting {self.citation_file_type} entry {code} since it is missing from the citations csv")
                 self.entry_dict.pop(code)
 
     def change_citation_code(self, current_code, new_code):
@@ -59,10 +52,12 @@ class _Bibliography:
     def save_file(self, revert_to_old=False):
         if self.file_name is None:
             return
-        with open(self.file_name, "w", encoding=write_encoding) as f:
-            logger.debug(f"Writing {self.citation_file_type} file")
-            file_contents = self.delim.join((self.backup_entry_dict if revert_to_old else self.entry_dict).values())
-            f.write(file_contents)
+        current_entries = (self.backup_entry_dict if revert_to_old else self.entry_dict)
+        if len(current_entries) > 0:
+            with open(self.file_name, "w", encoding=write_encoding) as f:
+                logger.debug(f"Writing {self.citation_file_type} file")
+                file_contents = self.delim.join(current_entries.values())
+                f.write(file_contents)
 
     def _get_entry_text(self, citation_dict):
         logger.error("Not Implemented Error", f"The class {self.citation_class} does not have an implementation of the method _get_entry_text")
@@ -70,7 +65,7 @@ class _Bibliography:
 class HayagrivaBib(_Bibliography):
     def _get_entry_text(self, citation_dict):
         entry_text = citation_dict["citation-code"] + ":\n"
-        exists = lambda key: citation_dict[key] not in ("", missing_data_string)
+        exists = lambda key: has_data(citation_dict[key])
         get_detail = lambda key, string=None, num=1: f"{self.indent * num}{key}:{' ' if string != '' else ''}{citation_dict[key] if string is None else string}\n"
         # citation type
         entry_text += get_detail("type", citation_dict["type"].title())
@@ -83,11 +78,11 @@ class HayagrivaBib(_Bibliography):
             entry_text += get_detail("author", author_string)
         # year, month, day
         if exists("year"):
-            date_string = citation_dict["year"]
+            date_string = str(citation_dict["year"])
             if exists("month"):
-                date_string += "-" + citation_dict["month"]
+                date_string += "-" + str(citation_dict["month"])
                 if exists("day"):
-                    date_string += "-" + citation_dict["day"]
+                    date_string += "-" + str(citation_dict["day"])
             entry_text += get_detail("date", date_string)
         # page
         if exists("page"):
@@ -104,19 +99,20 @@ class HayagrivaBib(_Bibliography):
             entry_text += get_detail("parent", "")
             if exists("journal"):
                 entry_text += get_detail("title", "", num=2)
-                entry_text += get_detail("value", "\"{" + citation_dict["journal"] + "\"}", num=3)
-                if exists("abbreviated-journal"):
-                    entry_text += get_detail("short", "\"{" + citation_dict["abbreviated-journal"] + "\"}", num=3)
+                entry_text += get_detail("value", "\"{" + citation_dict["journal"] + "}\"", num=3)
+                if exists("abbreviated-journal") and citation_dict["abbreviated-journal"] != citation_dict["journal"]:
+                    entry_text += get_detail("short", "\"{" + citation_dict["abbreviated-journal"] + "}\"", num=3)
             if exists("volume"):
                 entry_text += get_detail("volume", num=2)
             if exists("issue"):
                 entry_text += get_detail("issue", num=2)
+        return entry_text
 
 class BibtexBib(_Bibliography):
     def _get_entry_text(self, citation_dict):
         entry_text = ""
         citation_type = citation_dict["type"]
-        exists = lambda key: citation_dict[key] not in ("", missing_data_string)
+        exists = lambda key: has_data(citation_dict[key])
         get_detail = lambda key, string=None: f"{self.indent}{key} = {{{citation_dict[key] if string is None else string}}},\n"
         # citation type
         if citation_type not in ("book", "article"):
@@ -131,11 +127,11 @@ class BibtexBib(_Bibliography):
             entry_text += get_detail("title")
         # year, month, day
         if exists("year"):
-            date_string = citation_dict["year"]
+            date_string = str(citation_dict["year"])
             if exists("month"):
-                date_string = date_string + "-" + citation_dict["month"]
+                date_string = date_string + "-" + str(citation_dict["month"])
                 if exists("day"):
-                    date_string = date_string + "-" + citation_dict["day"]
+                    date_string = date_string + "-" + str(citation_dict["day"])
             date_string = "{" + date_string + "}"
             entry_text += get_detail("date", date_string)
         # journal and abbreviated-journal
