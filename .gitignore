@@ -12,3 +12,8 @@ test.py
 temp.py
 citation.log
 reference_docs
+
+md
+citations.bib
+citations.csv
+citations.yml
