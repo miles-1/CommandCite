@@ -4,7 +4,8 @@ from aux import logger, md_dir_name, \
     read_encoding, write_encoding, \
     has_data, make_md_link
 from os import remove, listdir, rename
-from os.path import join, basename
+from os.path import join, basename, exists
+
 
 class _FileCollection:
     def __init__(self, dir_name):
@@ -80,11 +81,19 @@ class Markdowns:
             return
         code = citation_dict["citation-code"]
         file_path = self._get_file_path(code)
-        with open(file_path, "r", encoding=read_encoding) as f:
-            file_content = f.read()
-        self.file_collection.record_updated(file_path, file_content)
-        content_lst = file_content.split(self.yaml_separator)
-        content_lst[1] = self._get_yaml_frontmatter(citation_dict, cited_links_lst)
+        new_yaml_frontmatter = self._get_yaml_frontmatter(citation_dict, cited_links_lst)
+        if exists(file_path):
+            with open(file_path, "r", encoding=read_encoding) as f:
+                file_content = f.read()
+            content_lst = file_content.split(self.yaml_separator)
+            if content_lst[1] == new_yaml_frontmatter:
+                logger.debug(f"No changes detected in yaml frontmatter of {code} .md, no update made")
+                return
+            self.file_collection.record_updated(file_path, file_content)
+        else:
+            content_lst = [""] * 3
+            self.file_collection.record_created(file_path)
+        content_lst[1] = new_yaml_frontmatter
         with open(file_path, "w", encoding=write_encoding) as f:
             f.write(self.yaml_separator.join(content_lst))
         logger.progress(f"Updated markdown file {code}.md")
@@ -118,6 +127,7 @@ class Markdowns:
                 logger.progress(f"File {code}.md changed so that its citation to {old_code} was exchanged for {new_code}")
     
     def revert_files(self):
+        print(self.file_collection.edited_md_files)
         for file_path in self.file_collection.get_created_files():
             remove(file_path)
         for new_file_path, old_file_path, old_content in self.file_collection.get_code_change_files():

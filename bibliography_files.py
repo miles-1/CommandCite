@@ -1,7 +1,7 @@
 from aux import logger, hayagriva_file_name, bibtex_file_name, \
     array_separator, concat_separator, \
     read_encoding, write_encoding, \
-    has_data
+    has_data, convert_to_latex
 import re
 from os.path import exists
 
@@ -131,13 +131,15 @@ class BibtexBib(_Bibliography):
         if citation_type not in ("book", "article"):
             citation_type = "misc"
         entry_text += "@" + citation_type + "{" + citation_dict["citation-code"] + ",\n"
+        if re.search(r"[^\x00-\x7F]", citation_dict["citation-code"]) is not None:
+            logger.warning(f"the citation code {citation_dict["citation-code"]} contains special characters (likely due to author last name) that may cause errors when attempting to use the bibtex file in other programs. It is recommended that you utilize the \"--rename\" flag to give this citation a new name using standard alphanumeric characters, like this:\n    cite --rename {citation_dict["citation-code"]} new_code_YYYY")
         # author
         if exists("author"):
             author_string = citation_dict["author"].replace(array_separator, " and ").replace(concat_separator, ", ")
-            entry_text += get_detail("author", author_string)
+            entry_text += get_detail("author", convert_to_latex(author_string))
         # title
         if exists("title"):
-            entry_text += get_detail("title")
+            entry_text += get_detail("title", convert_to_latex(citation_dict["title"]))
         # year, month, day
         if exists("year"):
             date_string = str(citation_dict["year"])

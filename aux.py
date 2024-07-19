@@ -3,7 +3,7 @@ import sys
 import json
 import traceback
 from datetime import datetime
-from os.path import join, dirname, isabs, exists
+from os.path import join, abspath, dirname, isabs, exists
 
 # settings
 with open("settings.json") as settings_file:
@@ -18,6 +18,7 @@ class Log:
     create_log_file = settings["logging"]["create_log_file"]
 
     def __init__(self):
+        self.all_warnings = ""
         self.log = open("citation.log", "w") if self.create_log_file else None
         self.debug("Creating logger")
         if self.log_level < 0 or self.log_level > 2:
@@ -34,7 +35,7 @@ class Log:
             self.log.write(error_str + "\n")
         print(error_str)
         if kill:
-            self.log.close()
+            self.close()
             sys.exit(2)
         else:
             raise CommandCiteError
@@ -56,12 +57,20 @@ class Log:
             self.log.write(message + "\n")
         if self.log_level == 2:
             print(message)
+    
+    def warning(self, message:str):
+        self.all_warnings += f">> WARNING: {message}\n"
+    
+    def close(self):
+        print(self.all_warnings)
+        self.log.write(self.all_warnings)
+        self.log.close()
 
 logger = Log()
 
 def _get_path(settings_dict:dict, extension:str="", check_field:str|None=None):
     directory = settings_dict["directory"]
-    directory = directory if isabs(directory) else join(dirname(sys.argv[0]), directory)
+    directory = directory if isabs(directory) else join(dirname(abspath(sys.argv[0])), directory)
     if not exists(directory):
         logger.error("Folder Missing", f"The folder {directory} does not exist")
     complete_path = join(directory, settings_dict["filename"]) + extension if extension else directory
@@ -92,6 +101,7 @@ try:
     bibtex_file_name = _get_path(settings["bibliography"], extension=".bib", check_field="make_bibtex")
     hayagriva_file_name = _get_path(settings["bibliography"], extension=".yml", check_field="make_hayagriva")
     delete_unmatched_entries = settings["bibliography"]["delete_unmatched_entries"]
+    convert_special_symbols_bibtex = settings["bibliography"]["convert_special_symbols_bibtex"]
     # network settings
     logger.debug("Loading network settings from settings.json")
     timeout = settings["network"]["timeout"]
@@ -396,6 +406,19 @@ def make_md_link(string:str, pdf:bool=False) -> str:
     extension = ".pdf" if pdf else ""
     return f"\"[[{string}{extension}]]\""
 
+# bibtex unicode to latex encoding function
+def convert_to_latex(string:str) -> str:
+    if not convert_special_symbols_bibtex or re.search(r"[^\x00-\x7F]", string) is None:
+        return string
+    if "latexencode" not in sys.modules:
+        try:
+            from pylatexenc.latexencode import unicode_to_latex
+            logger.debug("Importing pylatexenc")
+        except ModuleNotFoundError:
+            logger.progress("The module `pylatexenc` is required to properly encode special characters for the bibtex citation file. You can install it with `pip install pylatexenc`. Until it is installed, normal unicode encoding will be used in the bibtex file, which has the potential to cause issues when used with LaTeX.")
+            return string
+    return unicode_to_latex(string)
+
 # functions for main
 def format_id_num_arguments(args:list[str], flag:str="--setcode") -> tuple:
     result = []
@@ -468,7 +491,7 @@ def verify_arguments(arguments:list[str], all_codes:list[str]) -> tuple:
                     extra_info = f" However, the citation code \"{arguments[tag_indx+1]}\" was not found in the citations csv."
                 else:
                     extra_info = f" However, the tag \"{arguments[tag_indx+2]}\" was found where the base code should be."
-                logger.error("Bad Flag Use", f"The \"--update\" flag must be followed by (1) a citation code found in the citations csv and (2) a new base citation code (no suffix) that will serve as its replacement.{extra_info}")
+                logger.error("Bad Flag Use", f"The \"--rename\" flag must be followed by (1) a citation code found in the citations csv and (2) a new base citation code (no suffix) that will serve as its replacement.{extra_info}")
             old_code, new_code = arguments[tag_indx+1], format_base_citation_code(arguments[tag_indx+2])
             if old_code in entries_to_rename:
                 logger.debug(f"Code {old_code} already marked for renaming. Updating to rename to {new_code}")

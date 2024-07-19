@@ -50,7 +50,8 @@
         "make_hayagriva": true,
         "make_bibtex": true,
         "delete_unmatched_entries": true,
-        "_comment": "directory: directory to save bibliography files (path can be relative or absolute) | make_hayagriva: whether to make a Hayagriva bibliography file | make_bibtex: whether to make a BibTeX bibliography file | delete_unmatched_entries: whether to delete entries in the bibliography that are not cited in the citation csv"
+        "convert_special_symbols_bibtex": true,
+        "_comment": "directory: directory to save bibliography files (path can be relative or absolute) | make_hayagriva: whether to make a Hayagriva bibliography file | make_bibtex: whether to make a BibTeX bibliography file | delete_unmatched_entries: whether to delete entries in the bibliography that are not cited in the citation csv | convert_special_symbols_bibtex: whether to convert special symbols to latex encoding in author names and titles for the bibtex citation file, e.g., changing \"ü\" to \"\\\"u\". The LaTeX package `biblatex` can sidestep this issue and handles special symbols, so you may wish to turn this off (see https://tex.stackexchange.com/a/57827/262614)"
     },
 
     "network": {

@@ -1,10 +1,11 @@
 from aux import logger, csv_file_name, program_headers, \
     info_headers, read_encoding, write_encoding, \
-    array_separator, \
+    array_separator, missing_data_string, \
     format_base_citation_code, get_citation_code_parts, get_code_suffix_from_int, get_int_from_code_suffix, is_valid_citation_code, has_data
 from os.path import exists
 from collections import defaultdict
 from copy import deepcopy
+from datetime import datetime
 import csv
 
 class _EntryRow:
@@ -13,9 +14,22 @@ class _EntryRow:
         self.code_dict = {}
         self.base_citation_code_count = defaultdict(int)
         required_headers = program_headers + info_headers
+        if not isinstance(csv_headers, list):
+            csv_headers = []
         self.headers = tuple(required_headers + list(set(csv_headers) - set(required_headers)))
 
     def add_from_file(self, citation_dict):
+        # handle manually entered dicts
+        if not has_data(citation_dict["add-date"]):
+            citation_dict["add-date"] = datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
+        if not has_data(citation_dict["type"]):
+            if has_data(citation_dict["doi"]):
+                citation_dict["type"] = "article"
+            elif has_data(citation_dict["isbn"]):
+                citation_dict["type"] = "book"
+            else:
+                citation_dict["type"] = "article"
+        # add to row_lst
         code, row_indx, has_empty_cells = self._add_to_row_lst(citation_dict)
         # handle errors
         if code == "":
@@ -74,7 +88,15 @@ class _EntryRow:
         self.code_dict.pop(current_code)
         logger.progress(f"Citation code {current_code} changed to {new_code} in citations csv")
         return new_code
-        
+    
+    def fill_missing_cells(self, code):
+        citation_dict = self[code]
+        if self.has_empty_program_cells(citation_dict):
+            for header in info_headers:
+                if citation_dict[header] == "":
+                    citation_dict[header] = missing_data_string
+            logger.debug(f"Filling empty cells of {code} in citations csv")
+
     def get_rows(self, copy=False):
         return deepcopy(self.row_lst) if copy else self.row_lst
     
@@ -180,6 +202,9 @@ class CSV:
             logger.progress(f"Updated missing data in {citation_code} in citations csv file")
         else:
             logger.debug(f"No missing data found in {citation_code}")
+    
+    def fill_missing_cells(self, code):
+        self.entry_rows.fill_missing_cells(code)
     
     def get_entries_needing_updating(self):
         return self.entry_rows.get_entries_needing_updating()

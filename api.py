@@ -242,6 +242,8 @@ class CiteWorks:
             citation_dict = self.isbn_api1.get_csv_row(id_num, custom_base_citation_code=custom_base_code)
             if citation_dict is None and self.isbn_api2 is not None:
                 citation_dict = self.isbn_api2.get_csv_row(id_num, custom_base_citation_code=custom_base_code)
+        if citation_dict is None:
+            logger.progress(f"Unable to obtain data from apis for {id_num_type} {id_num}. If you desire to add this citation, it must be manually entered into the citations csv with a manually-created unique citation code (with suffix) and other known information.")
         return citation_dict
     
     def _init_doi_api(self):
