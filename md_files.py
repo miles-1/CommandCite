@@ -4,7 +4,7 @@ from aux import logger, md_dir_name, \
     read_encoding, write_encoding, \
     has_data, make_md_link
 from os import remove, listdir, rename
-from os.path import join, basename
+from os.path import join, basename, exists
 
 class _FileCollection:
     def __init__(self, dir_name):
@@ -19,7 +19,6 @@ class _FileCollection:
     
     def record_code_changed(self, new_file_path, old_file_path, old_content):
         self.edited_md_files["code_changed"].append([new_file_path, old_file_path, old_content])
-        print(self.current_md_files)
         self.current_md_files[self.current_md_files.index(basename(old_file_path))] = basename(new_file_path)
     
     def record_updated(self, file_path, file_content, check_created=False):
@@ -95,6 +94,7 @@ class Markdowns:
         old_file_path, new_file_path = [self._get_file_path(code) for code in (old_code, new_code)]
         # rename file
         rename(old_file_path, new_file_path)
+        logger.progress(f"File {old_code}.md changed to {new_code}.md, and contents updated if necessary")
         # collect old content
         with open(new_file_path, "r", encoding=read_encoding) as f:
             old_content = f.read()
@@ -114,6 +114,7 @@ class Markdowns:
                 new_content = old_content.replace(make_md_link(old_code), make_md_link(new_code))
                 with open(file_path, "w", encoding=write_encoding) as f:
                     f.write(new_content)
+                logger.progress(f"File {code}.md changed so that its citation to {old_code} was exchanged for {new_code}")
     
     def revert_files(self):
         for file_path in self.file_collection.get_created_files():

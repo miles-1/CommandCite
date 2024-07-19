@@ -12,7 +12,9 @@ test.py
 temp.py
 citation.log
 reference_docs
+old_versions
 
+# files and folders made by the program
 md
 citations.bib
 citations.csv

@@ -10,11 +10,12 @@ if __name__ == "__main__":
     api = CiteWorks()
     md = Markdowns()
     bibtex, hayagriva = BibtexBib(), HayagrivaBib()
+    all_codes = csv.get_all_citation_codes()
 
     try:
         # setup
         arguments = sys.argv[1:]
-        update_all_entries, entries_to_update, entries_to_rename, entry_codes = verify_arguments(arguments)
+        update_all_entries, entries_to_update, entries_to_rename, entry_codes = verify_arguments(arguments, all_codes)
 
         # update entries
         if update_all_entries:

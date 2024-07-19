@@ -354,7 +354,7 @@ def get_id_num_type(code:str) -> str|None:
         return "isbn"
     return None
 
-def verify_arguments(arguments:list[str]) -> tuple:
+def verify_arguments(arguments:list[str], all_codes:list[str]) -> tuple:
     update_all_entries = False
     entries_to_update = []
     entries_to_rename = {}
@@ -362,7 +362,55 @@ def verify_arguments(arguments:list[str]) -> tuple:
     if len(arguments) == 0:
         logger.error("No Arguments", "This program requires at least one argument to run")
     if "--help" in arguments:
-        print("""FLAGS:
+        print(help_string)
+        sys.exit(1)
+    # handle --update-all tag
+    if "--update-all" in arguments or update_blanks_automatically:
+        for _ in range(arguments.count("--update-all")):
+            arguments.pop(arguments.index("--update-all"))
+        if "--update" in arguments:
+            logger.error("Bad Flag Use", "The \"--update\" flag is not allowed if \"--update-all\" is used or \"update_blanks_automatically\" is enabled in settings.json")
+        update_all_entries = True
+        logger.debug("All entries are set to update")
+    # handle --update tag
+    if "--update" in arguments:
+        for _ in range(arguments.count["--update"]):
+            tag_indx = arguments.index("--update")
+            if len(arguments) <= tag_indx + 1:
+                logger.error("Bad Flag Use", "The \"--update\" flag must be followed by a valid citation code")
+            citation_code = arguments[tag_indx + 1]
+            if citation_code not in all_codes:
+                logger.error("Code Does Not Exist", f"The \"--update\" flag must be followed by a citation code found in the citations csv, and \"{citation_code}\" was not found")
+            for _ in range(2):
+                arguments.pop(tag_indx) # remove tag and citation code
+            if citation_code not in entries_to_update:
+                entries_to_update.append(citation_code)
+        logger.debug(f"The following entries are set to update: {', '.join(entries_to_update)}")
+    # handle --rename tag
+    if "--rename" in arguments:
+        for _ in range(arguments.count("--rename")):
+            tag_indx = arguments.index("--rename")
+            if len(arguments) <= tag_indx + 2 or \
+                arguments[tag_indx+1] not in all_codes or \
+                arguments[tag_indx+2].startswith("--"):
+                if len(arguments) <= tag_indx + 2:
+                    extra_info = ""
+                elif arguments[tag_indx+1] not in all_codes:
+                    extra_info = f" However, the citation code \"{arguments[tag_indx+1]}\" was not found in the citations csv."
+                else:
+                    extra_info = f" However, the tag \"{arguments[tag_indx+2]}\" was found where the base code should be."
+                logger.error("Bad Flag Use", f"The \"--update\" flag must be followed by (1) a citation code found in the citations csv and (2) a new base citation code (no suffix) that will serve as its replacement.{extra_info}")
+            old_code, new_code = arguments[tag_indx+1], format_base_citation_code(arguments[tag_indx+2])
+            if old_code in entries_to_rename:
+                logger.debug(f"Code {old_code} already marked for renaming. Updating to rename to {new_code}")
+            entries_to_rename[old_code] = new_code
+            for _ in range(3):
+                arguments.pop(tag_indx) # remove tag, citation code, and new base citation code
+    # collect dois and isbns
+    return update_all_entries, entries_to_update, entries_to_rename, format_id_num_arguments(arguments)
+
+
+help_string = """FLAGS:
               
 --help                                     Print this message
               
@@ -392,47 +440,4 @@ NOTES:
     --update-all and --update cannot be used together
               
     For markdown documents, --rename only updates the specified code in file names 
-    and the yaml frontmatter, not note text""")
-        sys.exit(1)
-    # handle --update-all tag
-    if "--update-all" in arguments or update_blanks_automatically:
-        for _ in range(arguments.count("--update-all")):
-            arguments.pop(arguments.index("--update-all"))
-        if "--update" in arguments:
-            logger.error("Bad Flag Use", "The \"--update\" flag is not allowed if \"--update-all\" is used or \"update_blanks_automatically\" is enabled in settings.json")
-        update_all_entries = True
-        logger.debug("All entries are set to update")
-    # handle --update tag
-    if "--update" in arguments:
-        for _ in range(arguments.count["--update"]):
-            tag_indx = arguments.index("--update")
-            if len(arguments) <= tag_indx + 1:
-                logger.error("Bad Flag Use", "The \"--update\" flag must be followed by a valid citation code")
-            citation_code = arguments[tag_indx + 1]
-            if not is_valid_citation_code(citation_code):
-                logger.error("Bad Flag Use", f"The \"--update\" flag must be followed by a valid citation code, and \"{citation_code}\" is an invalid citation code")
-            for _ in range(2):
-                arguments.pop(tag_indx) # remove tag and citation code
-            if citation_code not in entries_to_update:
-                entries_to_update.append(citation_code)
-        logger.debug(f"The following entries are set to update: {', '.join(entries_to_update)}")
-    # handle --rename tag
-    if "--rename" in arguments:
-        for _ in range(arguments.count("--rename")):
-            tag_indx = arguments.index("--rename")
-            if len(arguments) <= tag_indx + 2 or not is_valid_citation_code(arguments[tag_indx+1]) or arguments[tag_indx+2].startswith("--"):
-                if len(arguments) <= tag_indx + 2:
-                    extra_info = ""
-                elif not is_valid_citation_code(arguments[tag_indx+1]):
-                    extra_info = f" However, the citation code \"{arguments[tag_indx+1]}\" is not valid."
-                else:
-                    extra_info = f" However, the tag \"{arguments[tag_indx+2]}\" was found where the base code should be."
-                logger.error("Bad Flag Use", f"The \"--update\" flag must be followed by a valid citation code and a new base citation code (no suffix) that will serve as its replacement.{extra_info}")
-            old_code, new_code = arguments[tag_indx+1], format_base_citation_code(arguments[tag_indx+2])
-            if old_code in entries_to_rename:
-                logger.debug(f"Code {old_code} already marked for renaming. Updating to rename to {new_code}")
-            entries_to_rename[old_code] = new_code
-            for _ in range(3):
-                arguments.pop(tag_indx) # remove tag, citation code, and new base citation code
-    # collect dois and isbns
-    return update_all_entries, entries_to_update, entries_to_rename, format_id_num_arguments(arguments)
+    and the yaml frontmatter, not note text"""

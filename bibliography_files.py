@@ -39,16 +39,21 @@ class _Bibliography:
     def delete_unmatched_citations(self, citation_code_lst):
         if self.file_name is None:
             return
+        pop_codes = []
         for code in self.entry_dict:
             if code not in citation_code_lst:
                 logger.progress(f"Deleting {self.citation_file_type} entry {code} since it is missing from the citations csv")
-                self.entry_dict.pop(code)
+                pop_codes.append(code)
+        for code in pop_codes:
+            self.entry_dict.pop(code)
 
     def change_citation_code(self, current_code, new_code):
         if self.file_name is None:
             return
-        code_func = (lambda code: f"\n{code}:\n") if self.citation_file_type == "hayagriva" else (lambda code: "{" + f"{code},\n")
-        self.entry_dict[current_code] = self.entry_dict[current_code].replace(code_func(current_code), code_func(new_code))
+        code_func = (lambda code: f"{code}:\n  ") if self.citation_file_type == "hayagriva" else (lambda code: "{" + f"{code},\n")
+        self.entry_dict[new_code] = self.entry_dict[current_code].replace(code_func(current_code), code_func(new_code))
+        self.entry_dict.pop(current_code)
+        logger.progress(f"Changed {current_code} to {new_code} in {self.citation_file_type} file")
 
     def save_file(self, revert_to_old=False):
         if self.file_name is None:
