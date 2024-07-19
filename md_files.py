@@ -4,7 +4,7 @@ from aux import logger, md_dir_name, \
     read_encoding, write_encoding, \
     has_data, make_md_link
 from os import remove, listdir, rename
-from os.path import join, basename, exists
+from os.path import join, basename
 
 class _FileCollection:
     def __init__(self, dir_name):
@@ -53,14 +53,14 @@ class Markdowns:
         logger.debug("Getting all markdown file names for Markdowns class")
         self.file_collection = _FileCollection(self.dir_name)
 
-    def create_file(self, citation_dict):
+    def create_file(self, citation_dict, cited_links_lst=None):
         if self.dir_name is None:
             return
         code = citation_dict["citation-code"]
         file_path = self._get_file_path(code)
         self.file_collection.record_created(file_path)
         with open(file_path, "w", encoding=write_encoding) as f:
-            f.write(self.yaml_separator + self._get_yaml_frontmatter(citation_dict) + self.yaml_separator)
+            f.write(self.yaml_separator + self._get_yaml_frontmatter(citation_dict, cited_links_lst) + self.yaml_separator)
         logger.progress(f"Created markdown file {code}.md")
 
     def delete_unmatched_files(self, citation_codes_lst):
@@ -75,7 +75,7 @@ class Markdowns:
                 logger.progress(f"Deleting markdown file {file_path.rsplit('/',1)[1]} since it is missing from the citations csv")
                 remove(file_path)
 
-    def update_file(self, citation_dict):
+    def update_file(self, citation_dict, cited_links_lst=None):
         if self.dir_name is None:
             return
         code = citation_dict["citation-code"]
@@ -84,9 +84,10 @@ class Markdowns:
             file_content = f.read()
         self.file_collection.record_updated(file_path, file_content)
         content_lst = file_content.split(self.yaml_separator)
-        content_lst[1] = self._get_yaml_frontmatter(citation_dict)
+        content_lst[1] = self._get_yaml_frontmatter(citation_dict, cited_links_lst)
         with open(file_path, "w", encoding=write_encoding) as f:
             f.write(self.yaml_separator.join(content_lst))
+        logger.progress(f"Updated markdown file {code}.md")
 
     def change_citation_code(self, old_code, new_code, cited_by_lst):
         if self.dir_name is None:
@@ -105,7 +106,7 @@ class Markdowns:
                 new_content = old_content.replace(make_md_link(old_code, pdf=True), make_md_link(new_code, pdf=True))
                 f.write(new_content)
         # update md docs that cite this citation code
-        if link_cited:
+        if link_cited and cited_by_lst is not None:
             for code in cited_by_lst:
                 file_path = self._get_file_path(code)
                 with open(file_path, "r", encoding=read_encoding) as f:
@@ -129,16 +130,20 @@ class Markdowns:
 
     def _get_yaml_frontmatter(self, citation_dict, cited_links_lst=None):
         yaml_text = ""
-        get_detail = lambda key, string=None: f"{key}: {citation_dict[key] if string is None else string}\n"
-        make_lst = lambda lst: "\n" + self.indent + "- " + ("\n" + self.indent + "- ").join(lst)
+        get_detail = lambda key, string=None, whitespace=" ": f"{key}:{whitespace}{citation_dict[key] if string is None else string}\n"
+        make_lst = lambda lst: self.indent + "- " + ("\n" + self.indent + "- ").join(lst)
         # add properties from citation_dict
         for prop in included_properties:
             if has_data(citation_dict[prop]):
-                value = citation_dict[prop]
-                if prop == "title":
-                    value = "\"" + value + "\""
-                elif prop == "author":
+                value = str(citation_dict[prop])
+                if prop == "author":
                     value = make_lst([name.replace(concat_separator, ", ") for name in value.split(array_separator)])
+                    yaml_text += get_detail(prop, value, whitespace="\n")
+                    continue
+                elif prop == "add-date":
+                    yaml_text += get_detail(prop, value)
+                elif ":" in value:
+                    value = "\"" + value + "\""
                 yaml_text += get_detail(prop, value)
         # add link to pdf
         if (automate_pdf_link_doi and has_data(citation_dict["doi"])) or \
@@ -148,12 +153,18 @@ class Markdowns:
         for prop, value in user_defined_properties.items():
             if isinstance(value, bool):
                 value = str(value).lower()
+                yaml_text += get_detail(prop, value)
             elif isinstance(value, list):
                 value = make_lst(value)
-            yaml_text += get_detail(prop, value)
+                yaml_text += get_detail(prop, value, whitespace="\n")
+            else:
+                value = str(value)
+                if ":" in value:
+                    value = "\"" + value + "\""
+                yaml_text += get_detail(prop, value)
         # add links to cited documents
-        if cited_links_lst is not None and link_cited:
-            yaml_text += get_detail("citations", make_lst((make_md_link(code) for code in cited_links_lst)))
+        if link_cited and cited_links_lst is not None and len(cited_links_lst) > 0:
+            yaml_text += get_detail("citations", make_lst((make_md_link(code) for code in cited_links_lst)), whitespace="\n")
         return yaml_text
 
     def _get_file_path(self, citation_code):

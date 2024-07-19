@@ -9,7 +9,7 @@ __pycache__
 
 _test*.py
 test.py
-temp.py
+test.sh
 citation.log
 reference_docs
 old_versions

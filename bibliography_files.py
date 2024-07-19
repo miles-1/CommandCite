@@ -33,8 +33,15 @@ class _Bibliography:
         if self.file_name is None:
             return
         code = citation_dict["citation-code"]
-        self.entry_dict[code] = self._get_entry_text(citation_dict)
-        logger.progress(f"Added {code} to {self.citation_file_type} file")
+        new_text = self._get_entry_text(citation_dict).strip()
+        if code not in self.entry_dict:
+            self.entry_dict[code] = new_text
+            logger.progress(f"Added {code} to {self.citation_file_type} file")
+        elif self.entry_dict[code] != new_text:
+            self.entry_dict[code] = new_text
+            logger.progress(f"Updated entry for {code} in {self.citation_file_type} file")
+        else:
+            logger.debug(f"No changes detected in {code} citation in {self.citation_file_type} file, no update made")
 
     def delete_unmatched_citations(self, citation_code_lst):
         if self.file_name is None:

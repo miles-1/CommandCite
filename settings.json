@@ -11,10 +11,10 @@
         "missing_data_string": "NA",
         "array_separator": "|",
         "concat_separator": "+",
-        "title_case_titles": true,
-        "update_blanks_automatically": true,
+        "lower_case_all_caps_titles": true,
+        "title_case_titles": false,
         "citation-code_format": "<firstauthor.family>_<year>",
-        "_comment": "directory: directory of the citation csv (path can be relative or absolute) | filename: filename of the citation csv | missing_data_string: string to use for missing data | array_separator: separator for arrays in the csv | first_last_separator: separator for first and last names in author fields | title_case_titles: whether to put all titles in title case | update_blanks_automatically: whether all blanks in the .csv document (i.e., nothing in the cell, no `missing_data_string`) should be automatically updated whenever the program is used. If `false`, the `--update` tag has to be used to fill in these blanks | citation_code_format: format for citation codes, using fields from the csv in angle brackets. Besides <firstauthor.family> and <firstauthor.given>, all fields found in the csv can be used in the `citation-code`, specified with angle brackets. Unaccepted characters in citation codes are removed, white spaces are replaced with underscores, and since citation codes are made unique by automatically adding a suffix to the end, any that end with lower-case letters will have an underscore appended to them."
+        "_comment": "directory: directory of the citation csv (path can be relative or absolute) | filename: filename of the citation csv | missing_data_string: string to use for missing data (note this should not be changed after the csv file is created without manually replacing the symbol) | array_separator: separator for arrays in the csv (note this should not be changed after the csv file is created without manually replacing the symbol) | first_last_separator: separator for first and last names in author fields (note this should not be changed after the csv file is created without manually replacing the symbol) | title_case_titles: whether to put all titles in title case | citation_code_format: format for citation codes, using fields from the csv in angle brackets. Besides <firstauthor.family> and <firstauthor.given>, all fields found in the csv can be used in the `citation-code`, specified with angle brackets. Unaccepted characters in citation codes are removed, white spaces are replaced with underscores, and since citation codes are made unique by automatically adding a suffix to the end, any that end with lower-case letters will have an underscore appended to them."
     },
 
     "markdown": {
@@ -134,7 +134,7 @@
                 "cited-by-count": "is-referenced-by-count",
                 "type": "type@",
                 "abstract": "abstract@",
-                "cited-dois": "refereence.*.DOI"
+                "cited-dois": "reference.*.DOI"
             },
             "openlibrary": {
                 "/": "docs.0",

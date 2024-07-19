@@ -2,6 +2,7 @@ import re
 import sys
 import json
 import traceback
+from datetime import datetime
 from os.path import join, dirname, isabs, exists
 
 # settings
@@ -31,14 +32,19 @@ class Log:
         error_str = f">>> ERROR ({error}): {message}{error_traceback}"
         if self.create_log_file:
             self.log.write(error_str + "\n")
-            self.log.close()
         print(error_str)
         if kill:
+            self.log.close()
             sys.exit(2)
         else:
             raise CommandCiteError
     
-    def progress(self, message:str):
+    def progress(self, message:str, title_message:bool=False):
+        if title_message:
+            h_line, v_line = "─" * (len(message) + 2), "│"
+            upper_cap = "╭" + h_line + "╮"
+            lower_cap = "╰" + h_line + "╯"
+            message = upper_cap + f"\n{v_line} " + message + f" {v_line}\n" + lower_cap
         if self.create_log_file:
             self.log.write(message + "\n")
         if self.log_level >= 1:
@@ -69,8 +75,8 @@ try:
     missing_data_string = settings["citations_csv"]["missing_data_string"]
     array_separator = settings["citations_csv"]["array_separator"]
     concat_separator = settings["citations_csv"]["concat_separator"]
+    lower_case_all_caps_titles = settings["citations_csv"]["lower_case_all_caps_titles"]
     title_case_titles = settings["citations_csv"]["title_case_titles"]
-    update_blanks_automatically = settings["citations_csv"]["update_blanks_automatically"]
     citation_code_format = settings["citations_csv"]["citation-code_format"]
     # markdown settings
     logger.debug("Loading markdown settings from settings.json")
@@ -118,12 +124,47 @@ except KeyError as e:
 # program-managed headers
 program_headers = ["citation-code", "add-date"]
 
+# help string
+help_string = """FLAGS:
+              
+--help                                     Print this message
+              
+--update-all                               Fill in any blanks for program-managed 
+                                           headers of citations csv file for all 
+                                           rows, and update markdowns and bibliography 
+                                           files if they exist
+              
+--update [citation-code]                   Same as --update-all but instead for 
+                                           specified [citation-code]
+              
+--rename [citation-code] [new-base-code]   Change the citation code for the 
+                                           given [citation-code] to have a new one,
+                                           with base code specified by [new-base-code] 
+                                           (no suffix should be included)
+              
+[doi-or-isbn] --setcode [new-base-code]    For a given DOI or ISBN, set the citation 
+                                           code to have a base code of [new-base-code]
+
+Other than the restrictions listed below, any sequence or repetition of flags, DOIs 
+or ISBNs can be given to this program.
+
+NOTES:
+              
+    --help cannot be used in combination with other flags
+              
+    --update-all and --update cannot be used together
+              
+    For markdown documents, --rename only updates the specified code in file names 
+    and the yaml frontmatter, not note text"""
+
 # title and abstract formatting functions
 def format_title(string:str) -> str:
     """Replaces special characters and capitalizes if specified in settings.json"""
     if string == missing_data_string:
         return string
     string = replace_special_characters(string)
+    if lower_case_all_caps_titles and string.isupper():
+        string = ":".join(fragment.capitalize() for fragment in string.split(":"))
     return make_smart_title_case(string) if title_case_titles else string
 
 def remove_html_tags(string:str) -> str:
@@ -144,6 +185,9 @@ def replace_special_characters(string:str) -> str:
         "–": "-",
         "—": "-",
         "’": "'",
+        "\n": "",
+        "∼": "~",
+        " ": " ",
     }
     for character, replacement in replacement_dict.items():
         string = string.replace(character, replacement)
@@ -260,7 +304,7 @@ def is_valid_citation_code(code:str) -> bool:
     base_code, code_suffix = get_citation_code_parts(code)
     return code_suffix is not None and format_base_citation_code(base_code) == base_code
 
-# data retrieval functions
+# data retrieval and formatting functions
 def get_data_by_address(data:dict|list|str|int|bool, address:str) -> tuple[bool,any]:
     """Return the location at a given address, or missing_data_string if missing."""
     if match := re.match(r".*\[.*?([\.\*\[\]]).*?\].*", address):
@@ -322,6 +366,31 @@ def get_data_by_address(data:dict|list|str|int|bool, address:str) -> tuple[bool,
 def has_data(data:str) -> bool:
     return data not in ("", missing_data_string)
 
+def get_date_part(date_string:str, part) -> int:
+    date_formats = {
+        # date_format: (has_month, has_day)
+        "%b %d, %Y": (True, True),     # Jan 01, 2020
+        "%B %d, %Y": (True, True),     # January 01, 2020
+        "%Y-%m-%d": (True, True),      # 2020-01-01
+        "%Y-%m": (True, False),        # 2020-01
+        "%B %Y": (True, False),        # January 2020 
+        "%Y": (False, False),          # 2020
+    }
+    date_obj = None
+    for date_format, (has_month, has_day) in date_formats.items():
+        try:
+            date_obj = datetime.strptime(date_string, date_format)
+            if part == "year":
+                return date_obj.year
+            elif part == "month" and has_month:
+                return date_obj.month
+            elif part == "day" and has_day:
+                return date_obj.day
+            break
+        except ValueError:
+            continue
+    return missing_data_string
+
 # yaml frontmatter link function
 def make_md_link(string:str, pdf:bool=False) -> str:
     extension = ".pdf" if pdf else ""
@@ -339,7 +408,7 @@ def format_id_num_arguments(args:list[str], flag:str="--setcode") -> tuple:
         if id_num_type is None:
             logger.error("Unrecognized Argument", f"The argument {id_num} was expected to be a DOI or an ISBN, but follows the format of neither. DOIs take the form \"10.xxxx/abcd\", whereas ISBNs are just numbers.")
         if i < len(args) - 1 and args[i+1] == flag:
-            custom_base_code = format_base_citation_code(args[i+1])       
+            custom_base_code = format_base_citation_code(args[i+2])       
             result.append((id_num, id_num_type, custom_base_code))
             i += 3
         else:
@@ -365,16 +434,16 @@ def verify_arguments(arguments:list[str], all_codes:list[str]) -> tuple:
         print(help_string)
         sys.exit(1)
     # handle --update-all tag
-    if "--update-all" in arguments or update_blanks_automatically:
+    if "--update-all" in arguments:
         for _ in range(arguments.count("--update-all")):
             arguments.pop(arguments.index("--update-all"))
         if "--update" in arguments:
-            logger.error("Bad Flag Use", "The \"--update\" flag is not allowed if \"--update-all\" is used or \"update_blanks_automatically\" is enabled in settings.json")
+            logger.error("Bad Flag Use", "The \"--update\" flag is not allowed if \"--update-all\" is useds")
         update_all_entries = True
         logger.debug("All entries are set to update")
     # handle --update tag
     if "--update" in arguments:
-        for _ in range(arguments.count["--update"]):
+        for _ in range(arguments.count("--update")):
             tag_indx = arguments.index("--update")
             if len(arguments) <= tag_indx + 1:
                 logger.error("Bad Flag Use", "The \"--update\" flag must be followed by a valid citation code")
@@ -408,36 +477,3 @@ def verify_arguments(arguments:list[str], all_codes:list[str]) -> tuple:
                 arguments.pop(tag_indx) # remove tag, citation code, and new base citation code
     # collect dois and isbns
     return update_all_entries, entries_to_update, entries_to_rename, format_id_num_arguments(arguments)
-
-
-help_string = """FLAGS:
-              
---help                                     Print this message
-              
---update-all                               Fill in any blanks for program-managed 
-                                           headers of citations csv file for all 
-                                           rows, and update markdowns and bibliography 
-                                           files if they exist
-              
---update [citation-code]                   Same as --update-all but instead for 
-                                           specified [citation-code]
-              
---rename [citation-code] [new-base-code]   Change the citation code for the 
-                                           given [citation-code] to have a new one,
-                                           with base code specified by [new-base-code] 
-                                           (no suffix should be included)
-              
-[doi-or-isbn] --setcode [new-base-code]    For a given DOI or ISBN, set the citation 
-                                           code to have a base code of [new-base-code]
-
-Other than the restrictions listed below, any sequence or repetition of flags, DOIs 
-or ISBNs can be given to this program.
-
-NOTES:
-              
-    --help cannot be used in combination with other flags
-              
-    --update-all and --update cannot be used together
-              
-    For markdown documents, --rename only updates the specified code in file names 
-    and the yaml frontmatter, not note text"""

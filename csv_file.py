@@ -99,12 +99,24 @@ class _EntryRow:
         code_lst = []
         id_num = self[code]["doi"]
         if not has_data(id_num):
-            return code_lst
+            return None
         for row_dict in self.row_lst:
             code, cited_dois = row_dict["citation-code"], row_dict["cited-dois"]
             if has_data(cited_dois) and id_num in cited_dois.split(array_separator):
                 code_lst.append(code)
-        return code_lst
+        return code_lst if len(code_lst) > 0 else None
+    
+    def get_codes_cited_by_code(self, code):
+        code_lst = []
+        cited_dois = self[code]["cited-dois"]
+        if not has_data(cited_dois):
+            return None
+        cited_dois = cited_dois.split(array_separator)
+        for row_dict in self.row_lst:
+            code, id_num = row_dict["citation-code"], row_dict["doi"]
+            if id_num in cited_dois:
+                code_lst.append(code)
+        return code_lst if len(code_lst) > 0 else None
 
     def _add_citation_code_suffix(self, base_code, citation_dict, new_code=True):
         self.base_citation_code_count[base_code] += 1
@@ -115,8 +127,7 @@ class _EntryRow:
     def _check_code_exists(self, code):
         if code not in self.code_dict:
             logger.error("Specified Code Does Not Exist", f"The citation code \"{code}\" is not found in the citations csv file.")
-    
-    
+
 
 class CSV:
     old_entries_copy = None
@@ -163,10 +174,10 @@ class CSV:
     def update_entry(self, citation_code, new_citation_dict):
         old_citation_dict = self.get_entry(citation_code)
         if self.entry_rows.has_empty_program_cells(old_citation_dict):
-            logger.debug(f"Updating missing data in {citation_code}")
             for header, cell in old_citation_dict.items():
                 if cell == "":
                     old_citation_dict[header] = new_citation_dict[header]
+            logger.progress(f"Updated missing data in {citation_code} in citations csv file")
         else:
             logger.debug(f"No missing data found in {citation_code}")
     
@@ -184,3 +195,6 @@ class CSV:
     
     def get_codes_that_cite_code(self, code):
         return self.entry_rows.get_codes_that_cite_code(code)
+    
+    def get_codes_cited_by_code(self, code):
+        return self.entry_rows.get_codes_cited_by_code(code)

@@ -19,31 +19,40 @@ if __name__ == "__main__":
 
         # update entries
         if update_all_entries:
-            entries_to_update = csv.get_entries_needing_updating()
+            entries_to_update = csv.get_all_citation_codes()
         if len(entries_to_update) > 0:
+            logger.progress("Updating Entries", title_message=True)
+            entries_that_can_be_updated = csv.get_entries_needing_updating() if not update_all_entries else None
             for code in entries_to_update:
+                logger.progress(f"Updating {code} citation")
                 # get old citation dict
                 citation_dict = csv.get_entry(code)
                 # get new citation dict
-                if has_data(citation_dict["doi"]):
-                    id_num = citation_dict["doi"]
-                    id_num_type = "doi"
-                elif has_data(citation_dict["isbn"]):
-                    id_num = citation_dict["isbn"]
-                    id_num_type = "isbn"
-                new_citation_dict = api.get_csv_row(id_num, id_num_type)
+                if code in entries_that_can_be_updated:
+                    if has_data(citation_dict["doi"]):
+                        id_num = citation_dict["doi"]
+                        id_num_type = "doi"
+                    elif has_data(citation_dict["isbn"]):
+                        id_num = citation_dict["isbn"]
+                        id_num_type = "isbn"
+                    new_citation_dict = api.get_csv_row(id_num, id_num_type)
+                else:
+                    new_citation_dict = citation_dict
+                # update files
                 if new_citation_dict is not None:
                     # update csv
                     csv.update_entry(code, new_citation_dict)
                     new_citation_dict = csv.get_entry(code)
                     # update mds
-                    md.update_file(new_citation_dict)
+                    md.update_file(new_citation_dict, csv.get_codes_cited_by_code(code))
                     # update bibliographies
                     bibtex.create_or_update_citation(new_citation_dict)
                     hayagriva.create_or_update_citation(new_citation_dict)
+                logger.progress("")
 
         # rename entries
         if len(entries_to_rename) > 0:
+            logger.progress("Renaming Entries", title_message=True)
             for current_code, new_base_code in entries_to_rename.items():
                 # change code in csv
                 cited_by = csv.get_codes_that_cite_code(current_code)
@@ -53,9 +62,11 @@ if __name__ == "__main__":
                 # change code in bibliographies
                 bibtex.change_citation_code(current_code, new_code)
                 hayagriva.change_citation_code(current_code, new_code)
+                logger.progress("")
 
         # make new entries
         if len(entry_codes) > 0:
+            logger.progress("Creating New Entries", title_message=True)
             existing_codes = csv.get_all_id_nums()
             for entry_info in entry_codes:
                 id_num, id_num_type = entry_info[:2]
@@ -67,12 +78,21 @@ if __name__ == "__main__":
                     # add to csv
                     citation_dict = csv.add_from_api(citation_dict)
                     # add md file
-                    md.create_file(citation_dict)
+                    code = citation_dict["citation-code"]
+                    md.create_file(citation_dict, csv.get_codes_cited_by_code(code))
+                    code_lst = csv.get_codes_that_cite_code(code)
+                    if code_lst is not None:
+                        for citing_code in csv.get_codes_that_cite_code(code):
+                            citing_dict = csv.get_entry(citing_code)
+                            cited_links_list = csv.get_codes_cited_by_code(citing_code)
+                            md.update_file(citing_dict, cited_links_list)
                     # add bibliography entries
                     bibtex.create_or_update_citation(citation_dict)
                     hayagriva.create_or_update_citation(citation_dict)
+                logger.progress("")
 
         # delete files and entries for missing data
+        logger.progress("Saving Files", title_message=True)
         citation_code_lst = csv.get_all_citation_codes()
         md.delete_unmatched_files(citation_code_lst)
         bibtex.delete_unmatched_citations(citation_code_lst)
@@ -84,8 +104,10 @@ if __name__ == "__main__":
         hayagriva.save_file()
 
     except Exception as e:
-        # for file_class in (csv, bibtex, hayagriva):
-        #     file_class.save_file(revert_to_old=True)
-        # md.revert_files()
-        if not isinstance(e, CommandCiteError):
+        for file_class in (csv, bibtex, hayagriva):
+            file_class.save_file(revert_to_old=True)
+        md.revert_files()
+        if isinstance(e, CommandCiteError):
+            logger.log.close()
+        else:
             logger.error(e, "", kill=True)

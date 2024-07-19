@@ -1,6 +1,6 @@
 from crossref.restful import Works, Etiquette
 from time import sleep
-from aux import logger, program_headers, get_data_by_address, \
+from aux import logger, program_headers, get_data_by_address, get_date_part, \
     format_title, format_isbn, format_names, format_base_citation_code, replace_special_characters, \
     openlibrary_url, googlebooks_url, \
     missing_data_string, array_separator, concat_separator, citation_code_format, header_addresses, \
@@ -110,7 +110,7 @@ class _GenWorks:
                 if response is None:
                     logger.progress(f"{self.api_class_name}: Received \"None\" response for {self.id_num_type} \"{id_num}\". Skipping")
                 else:
-                    logger.progress(f"{self.api_class_name}: Successfully retrieved data {self.id_num_type} \"{id_num}\"")
+                    logger.progress(f"{self.api_class_name}: Successfully retrieved data for {self.id_num_type} \"{id_num}\"")
                 return response
             except requests.exceptions.Timeout:
                 if i == num_retries - 1:
@@ -153,7 +153,7 @@ class _ISBNWorks(_GenWorks):
         self.url = url
         if all(x is not None for x in [project_name, project_version, project_url, contact_email]):
             logger.debug(f"{self.api_class_name}: polite api settings found in settings.json, sharing with api as headers")
-            self.ettiquette = {
+            self.etiquette = {
                 "User-Agent": f"{project_name}/{project_version} ({project_url}; mailto:{contact_email})",
                 "Accept": "application/json"
             }
@@ -161,7 +161,7 @@ class _ISBNWorks(_GenWorks):
             logger.debug(f"{self.api_class_name}: polite api settings not found in settings.json, using api anonymously")
     
     def _request(self, id_num):
-        response = requests.get(self.url + id_num, timeout=timeout, headers=self.ettiquette)
+        response = requests.get(self.url + id_num, timeout=timeout, headers=self.etiquette)
         if response.status_code == 200:
             return self._validate(response.json())
         logger.debug(f"{self.api_class_name}: HTTP error {response.status_code} while retrieving {self.id_num_type} \"{id_num}\"")
@@ -180,6 +180,8 @@ class OpenLibraryWorks(_ISBNWorks):
         return response
     
     def _process_data(self, header, data):
+        if data == missing_data_string:
+            return data
         match header:
             case "title":
                 return format_title(data)  
@@ -188,7 +190,7 @@ class OpenLibraryWorks(_ISBNWorks):
             case "year" | "month" | "day":
                 if header == "year" and isinstance(data, int):
                     return data
-                return getattr(datetime.strptime(data, "%b %d, %Y"), header)
+                return get_date_part(data, header)
             case "type":
                 if data == "work":
                     return "book"
@@ -205,6 +207,8 @@ class GoogleBooksWorks(_ISBNWorks):
         return response
     
     def _process_data(self, header, data):
+        if data == missing_data_string:
+            return data
         match header:
             case "title":
                 return format_title(data.replace(concat_separator, ": "))
