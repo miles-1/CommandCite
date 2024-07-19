@@ -4,8 +4,45 @@ from aux import logger, md_dir_name, \
     read_encoding, write_encoding, \
     has_data, make_md_link
 from os import remove, listdir, rename
-from os.path import join
+from os.path import join, basename
 
+class _FileCollection:
+    def __init__(self, dir_name):
+        self.dir_name = dir_name
+        self.edited_md_files = {"created": [], "code_changed": [], "updated_or_deleted": {}}
+        if self.dir_name is not None:
+            self.current_md_files = [path for path in listdir(self.dir_name) if path.endswith(".md")]
+    
+    def record_created(self, file_path):
+        self.edited_md_files["created"].append(file_path)
+        self.current_md_files.append(basename(file_path))
+    
+    def record_code_changed(self, new_file_path, old_file_path, old_content):
+        self.edited_md_files["code_changed"].append([new_file_path, old_file_path, old_content])
+        print(self.current_md_files)
+        self.current_md_files[self.current_md_files.index(basename(old_file_path))] = basename(new_file_path)
+    
+    def record_updated(self, file_path, file_content, check_created=False):
+        if check_created and file_path in self.edited_md_files["created"]:
+            return
+        if file_path not in self.edited_md_files["updated_or_deleted"]:
+            self.edited_md_files["updated_or_deleted"][file_path] = file_content
+    
+    def record_deleted(self, file_path, file_content):
+        self.record_updated(file_path, file_content)
+        self.current_md_files.pop(self.current_md_files.index(basename(file_path)))
+    
+    def get_created_files(self):
+        return self.edited_md_files["created"]
+
+    def get_code_change_files(self):
+        return self.edited_md_files["code_changed"]
+    
+    def get_updated_or_deleted_files(self):
+        return self.edited_md_files["updated_or_deleted"]
+    
+    def get_current_md_file_paths(self):
+        return self.current_md_files
 
 class Markdowns:
     dir_name = md_dir_name
@@ -14,29 +51,28 @@ class Markdowns:
     current_md_files = None
 
     def __init__(self):
-        self.edited_md_files = {"created": [], "code_changed": [], "updated_or_deleted": {}}
         logger.debug("Getting all markdown file names for Markdowns class")
-        if self.dir_name is not None:
-            self.current_md_files = [path for path in listdir(self.dir_name) if path.endswith(".md")]
+        self.file_collection = _FileCollection(self.dir_name)
 
     def create_file(self, citation_dict):
         if self.dir_name is None:
             return
         code = citation_dict["citation-code"]
-        path = self._get_file_path(code)
-        self.edited_md_files["created"].append(path)
-        with open(path, "w", encoding=write_encoding) as f:
+        file_path = self._get_file_path(code)
+        self.file_collection.record_created(file_path)
+        with open(file_path, "w", encoding=write_encoding) as f:
             f.write(self.yaml_separator + self._get_yaml_frontmatter(citation_dict) + self.yaml_separator)
+        logger.progress(f"Created markdown file {code}.md")
 
     def delete_unmatched_files(self, citation_codes_lst):
         if self.dir_name is None or not delete_unmatched_citations:
             return
-        for file in self.current_md_files:
+        for file in self.file_collection.get_current_md_file_paths():
             code = file[:-3] # remove .md
             if code not in citation_codes_lst:
                 file_path = self._get_file_path(code)
                 with open(file_path, "r", encoding=read_encoding) as f:
-                    self.edited_md_files["updated_or_deleted"][file_path] = f.read()
+                    self.file_collection.record_deleted(file_path, f.read())
                 logger.progress(f"Deleting markdown file {file_path.rsplit('/',1)[1]} since it is missing from the citations csv")
                 remove(file_path)
 
@@ -47,7 +83,7 @@ class Markdowns:
         file_path = self._get_file_path(code)
         with open(file_path, "r", encoding=read_encoding) as f:
             file_content = f.read()
-        self.edited_md_files["updated_or_deleted"][file_path] = file_content
+        self.file_collection.record_updated(file_path, file_content)
         content_lst = file_content.split(self.yaml_separator)
         content_lst[1] = self._get_yaml_frontmatter(citation_dict)
         with open(file_path, "w", encoding=write_encoding) as f:
@@ -62,7 +98,7 @@ class Markdowns:
         # collect old content
         with open(new_file_path, "r", encoding=read_encoding) as f:
             old_content = f.read()
-            self.edited_md_files["code_changed"].append([new_file_path, old_file_path, old_content])
+            self.file_collection.record_code_changed(new_file_path, old_file_path, old_content)
         # update pdf link in yaml frontmatter if necessary
         if (automate_pdf_link_doi or automate_pdf_link_isbn) and make_md_link(old_code, pdf=True) in old_content:
             with open(new_file_path, "w", encoding=write_encoding) as f:
@@ -74,20 +110,19 @@ class Markdowns:
                 file_path = self._get_file_path(code)
                 with open(file_path, "r", encoding=read_encoding) as f:
                     old_content = f.read()
-                if file_path not in self.edited_md_files["updated_or_deleted"] and file_path not in self.edited_md_files["created"]:
-                    self.edited_md_files["updated_or_deleted"][file_path] = old_content
+                self.file_collection.record_updated(file_path, old_content, check_created=True)
                 new_content = old_content.replace(make_md_link(old_code), make_md_link(new_code))
                 with open(file_path, "w", encoding=write_encoding) as f:
                     f.write(new_content)
     
     def revert_files(self):
-        for file_path in self.edited_md_files["created"]:
+        for file_path in self.file_collection.get_created_files():
             remove(file_path)
-        for new_file_path, old_file_path, old_content in self.edited_md_files["code_changed"]:
+        for new_file_path, old_file_path, old_content in self.file_collection.get_code_change_files():
             remove(new_file_path)
             with open(old_file_path, "w", encoding=write_encoding) as f:
                 f.write(old_content)
-        for file_path, content in self.edited_md_files["updated_or_deleted"].items():
+        for file_path, content in self.file_collection.get_updated_or_deleted_files().items():
             with open(old_file_path, "w", encoding=write_encoding) as f:
                 f.write(content)
 

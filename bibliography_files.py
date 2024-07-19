@@ -34,6 +34,7 @@ class _Bibliography:
             return
         code = citation_dict["citation-code"]
         self.entry_dict[code] = self._get_entry_text(citation_dict)
+        logger.progress(f"Added {code} to {self.citation_file_type} file")
 
     def delete_unmatched_citations(self, citation_code_lst):
         if self.file_name is None:

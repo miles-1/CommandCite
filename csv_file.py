@@ -42,6 +42,7 @@ class _EntryRow:
         self._add_citation_code_suffix(base_citation_code, citation_dict)
         code, row_indx, has_empty_cells = self._add_to_row_lst(citation_dict)
         self.code_dict[code] = (row_indx, has_empty_cells)
+        logger.progress(f"Added citation code {code} to entry, and added entry to citations csv file")
         return citation_dict
     
     def _add_to_row_lst(self, citation_dict):
@@ -51,7 +52,7 @@ class _EntryRow:
         code, row_indx, has_empty_cells = full_dict["citation-code"], len(self.row_lst) - 1, self.has_empty_program_cells(full_dict)
         return code, row_indx, has_empty_cells
 
-    def __get_item__(self, code):
+    def __getitem__(self, code):
         self._check_code_exists(code)
         row_indx = self.code_dict[code][0]
         return self.row_lst[row_indx]
@@ -66,13 +67,13 @@ class _EntryRow:
 
     def change_citation_code(self, current_code, new_base_code):
         logger.debug(f"Changing citation code {current_code} to have base code of {new_base_code}")
-        new_base_code = format_base_citation_code(new_base_code)
         citation_dict = self[current_code]
-        self._add_citation_code_suffix(new_base_code, citation_dict)
+        self._add_citation_code_suffix(new_base_code, citation_dict, new_code=True)
         new_code = citation_dict["citation-code"]
         self.code_dict[new_code] = self.code_dict[current_code]
         self.code_dict.pop(current_code)
         logger.progress(f"Citation code {current_code} changed to {new_code} in citations csv")
+        return new_code
         
     def get_rows(self, copy=False):
         return deepcopy(self.row_lst) if copy else self.row_lst
@@ -105,8 +106,10 @@ class _EntryRow:
                 code_lst.append(code)
         return code_lst
 
-    def _add_citation_code_suffix(self, base_code, citation_dict):
+    def _add_citation_code_suffix(self, base_code, citation_dict, new_code=True):
         self.base_citation_code_count[base_code] += 1
+        if new_code:
+            citation_dict["citation-code"] = base_code
         citation_dict["citation-code"] += get_code_suffix_from_int(self.base_citation_code_count[base_code])
     
     def _check_code_exists(self, code):
@@ -176,8 +179,8 @@ class CSV:
     def get_all_citation_codes(self):
         return self.entry_rows.get_codes()
     
-    def change_citation_code(self):
-        return self.entry_rows.change_citation_code()
+    def change_citation_code(self,current_code, new_base_code):
+        return self.entry_rows.change_citation_code(current_code, new_base_code)
     
     def get_codes_that_cite_code(self, code):
         return self.entry_rows.get_codes_that_cite_code(code)
