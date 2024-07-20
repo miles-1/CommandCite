@@ -127,7 +127,6 @@ class Markdowns:
                 logger.progress(f"File {code}.md changed so that its citation to {old_code} was exchanged for {new_code}")
     
     def revert_files(self):
-        print(self.file_collection.edited_md_files)
         for file_path in self.file_collection.get_created_files():
             remove(file_path)
         for new_file_path, old_file_path, old_content in self.file_collection.get_code_change_files():

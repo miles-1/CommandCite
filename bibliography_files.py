@@ -132,7 +132,7 @@ class BibtexBib(_Bibliography):
             citation_type = "misc"
         entry_text += "@" + citation_type + "{" + citation_dict["citation-code"] + ",\n"
         if re.search(r"[^\x00-\x7F]", citation_dict["citation-code"]) is not None:
-            logger.warning(f"the citation code {citation_dict["citation-code"]} contains special characters (likely due to author last name) that may cause errors when attempting to use the bibtex file in other programs. It is recommended that you utilize the \"--rename\" flag to give this citation a new name using standard alphanumeric characters, like this:\n    cite --rename {citation_dict["citation-code"]} new_code_YYYY")
+            logger.warning(f"the citation code {citation_dict['citation-code']} contains special characters (likely due to author last name) that may cause errors when attempting to use the bibtex file in other programs. It is recommended that you utilize the \"--rename\" flag to give this citation a new name using standard alphanumeric characters, like this:\n    cite --rename {citation_dict['citation-code']} new_code_YYYY")
         # author
         if exists("author"):
             author_string = citation_dict["author"].replace(array_separator, " and ").replace(concat_separator, ", ")
