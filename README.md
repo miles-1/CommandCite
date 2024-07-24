@@ -19,7 +19,7 @@ A command line tool that takes DOIs and ISBNs to query databases for citation de
    - In that folder, create a file called `cite` with the command `touch cite`.
    - Run the following commands in the terminal. Remember to change `path_to_repo` to the path to the repository. Mac users should use `python3` instead of just `python`.
    ```bash
-   echo -e "#\!/bin/bash\npython /path_to_repo/main.py" >> cite
+   echo -e "#\!/bin/bash\npython /path_to_repo/main.py \"@\"" >> cite
    chmod +x cite # changes permissions to make script executable
    ```
    - Now, wherever your current working directory is for your terminal, you can use the `cite` command in your terminal as shown in the examples below.

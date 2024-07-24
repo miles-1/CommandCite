@@ -1,0 +1,2 @@
+#!/bin/bash
+python /path_to_repo/main.py "@"
