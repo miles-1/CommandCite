@@ -47,11 +47,11 @@ if __name__ == "__main__":
                     csv.fill_missing_cells(code)
                 new_citation_dict = csv.get_entry(code)
                 # update mds
-                md.update_file(new_citation_dict, csv.get_codes_cited_by_code(code))
+                md.create_or_update_file(new_citation_dict, csv.get_codes_cited_by_code(code))
                 # update bibliographies
                 bibtex.create_or_update_citation(new_citation_dict)
                 hayagriva.create_or_update_citation(new_citation_dict)
-                logger.progress("")
+                logger.progress_newline()
 
         # rename entries
         if len(entries_to_rename) > 0:
@@ -65,7 +65,7 @@ if __name__ == "__main__":
                 # change code in bibliographies
                 bibtex.change_citation_code(current_code, new_code)
                 hayagriva.change_citation_code(current_code, new_code)
-                logger.progress("")
+                logger.progress_newline()
 
         # make new entries
         if len(entry_codes) > 0:
@@ -74,7 +74,8 @@ if __name__ == "__main__":
             for entry_info in entry_codes:
                 id_num, id_num_type = entry_info[:2]
                 if id_num in existing_codes[id_num_type]:
-                    logger.progress(f"The {id_num_type} {id_num} is already found in the citations csv. Skipping.")
+                    logger.progress(f"The {id_num_type} \"{id_num}\" is already found in the citations csv. Skipping.")
+                    logger.progress_newline()
                     continue
                 citation_dict = api.get_csv_row(*entry_info)
                 if citation_dict is not None:
@@ -82,17 +83,17 @@ if __name__ == "__main__":
                     citation_dict = csv.add_from_api(citation_dict)
                     # add md file
                     code = citation_dict["citation-code"]
-                    md.create_file(citation_dict, csv.get_codes_cited_by_code(code))
+                    md.create_or_update_file(citation_dict, csv.get_codes_cited_by_code(code))
                     code_lst = csv.get_codes_that_cite_code(code)
                     if code_lst is not None:
                         for citing_code in csv.get_codes_that_cite_code(code):
                             citing_dict = csv.get_entry(citing_code)
                             cited_links_list = csv.get_codes_cited_by_code(citing_code)
-                            md.update_file(citing_dict, cited_links_list)
+                            md.create_or_update_file(citing_dict, cited_links_list)
                     # add bibliography entries
                     bibtex.create_or_update_citation(citation_dict)
                     hayagriva.create_or_update_citation(citation_dict)
-                logger.progress("")
+                logger.progress_newline()
 
         # delete files and entries for missing data
         logger.progress("Saving Files", title_message=True)

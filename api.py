@@ -137,6 +137,13 @@ class CrossRefWorks(_GenWorks):
     def _process_data(self, header, data):
         # crossref types: https://crossref.gitlab.io/knowledge_base/docs/topics/content-types/
         match header:
+            case "author":
+                data = replace_special_characters(data)
+                return array_separator.join(
+                    concat_separator.join(
+                        name_frag.title() for name_frag in name.split(concat_separator)
+                    ) for name in data.split(array_separator)
+                )
             case "title":
                 return format_title(data)  
             case "day":

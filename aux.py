@@ -5,8 +5,10 @@ import traceback
 from datetime import datetime
 from os.path import join, abspath, dirname, isabs, exists
 
+project_path = dirname(abspath(__file__))
+
 # settings
-with open("settings.json") as settings_file:
+with open(join(project_path, "settings.json")) as settings_file:
     settings = json.load(settings_file)
 
 # logger
@@ -19,7 +21,7 @@ class Log:
 
     def __init__(self):
         self.all_warnings = ""
-        self.log = open("citation.log", "w") if self.create_log_file else None
+        self.log = open(join(project_path, "citation.log"), "w") if self.create_log_file else None
         self.debug("Creating logger")
         if self.log_level < 0 or self.log_level > 2:
             self.error("ValueError", "log_level in settings.json must be between 0 and 2")
@@ -51,6 +53,9 @@ class Log:
         if self.log_level >= 1:
             print(message)
     
+    def progress_newline(self):
+        self.progress("")
+    
     def debug(self, message:str):
         message = f"> DEBUG: {message}"
         if self.create_log_file:
@@ -70,7 +75,7 @@ logger = Log()
 
 def _get_path(settings_dict:dict, extension:str="", check_field:str|None=None):
     directory = settings_dict["directory"]
-    directory = directory if isabs(directory) else join(dirname(abspath(sys.argv[0])), directory)
+    directory = directory if isabs(directory) else join(project_path, directory)
     if not exists(directory):
         logger.error("Folder Missing", f"The folder {directory} does not exist")
     complete_path = join(directory, settings_dict["filename"]) + extension if extension else directory
@@ -270,9 +275,9 @@ def format_isbn(isbn:str) -> str:
 
 # citation code functions
 def format_base_citation_code(code:str) -> str:
-    return re.sub(r"([a-z])\b", r"\1_",
-                  re.sub("\\s+", "_", 
-                         re.sub(r"[\\/:;*\[\]?\"'<>|]", "", 
+    return re.sub(r"([a-z])$", r"\1_",
+                  re.sub("\\s+", "_",
+                         re.sub(r"[\\/:;*\$\[\]?\"'<>|]", "", 
                                 code)))
 
 def get_citation_code_parts(code:str) -> str:
@@ -401,10 +406,28 @@ def get_date_part(date_string:str, part) -> int:
             continue
     return missing_data_string
 
-# yaml frontmatter link function
+# yaml frontmatter function
 def make_md_link(string:str, pdf:bool=False) -> str:
     extension = ".pdf" if pdf else ""
     return f"\"[[{string}{extension}]]\""
+
+def update_frontmatter(old_yml:str, new_yml:str) -> str|None:
+    old_yml_dict = convert_frontmatter_to_lines_dict(old_yml)
+    new_yml_dict = convert_frontmatter_to_lines_dict(new_yml)
+    new_yml_dict_included_properties_only = {k: v for k, v in new_yml_dict.items() if k in included_properties}
+    old_yml_dict.update(new_yml_dict_included_properties_only)
+    for prop in user_defined_properties:
+        if prop not in old_yml_dict:
+            old_yml_dict[prop] = new_yml_dict[prop]
+    updated_old_yml = "\n".join(old_yml_dict.values()) + "\n"
+    return updated_old_yml if updated_old_yml != old_yml else None
+
+def convert_frontmatter_to_lines_dict(yml):
+    line_dict = {}
+    for line in re.split(r"\n(?!\s)", yml):
+        if line:
+            line_dict[line.split(":", 1)[0]] = line
+    return line_dict
 
 # bibtex unicode to latex encoding function
 def convert_to_latex(string:str) -> str:

@@ -2,7 +2,7 @@ from aux import logger, md_dir_name, \
     array_separator, concat_separator, \
     link_cited, delete_unmatched_citations, automate_pdf_link_doi, automate_pdf_link_isbn, included_properties, user_defined_properties, \
     read_encoding, write_encoding, \
-    has_data, make_md_link
+    has_data, make_md_link, update_frontmatter
 from os import remove, listdir, rename
 from os.path import join, basename, exists
 
@@ -12,7 +12,7 @@ class _FileCollection:
         self.dir_name = dir_name
         self.edited_md_files = {"created": [], "code_changed": [], "updated_or_deleted": {}}
         if self.dir_name is not None:
-            self.current_md_files = [path for path in listdir(self.dir_name) if path.endswith(".md")]
+            self.current_md_files = [path for path in sorted(listdir(self.dir_name)) if path.endswith(".md")]
     
     def record_created(self, file_path):
         self.edited_md_files["created"].append(file_path)
@@ -42,7 +42,7 @@ class _FileCollection:
         return self.edited_md_files["updated_or_deleted"]
     
     def get_current_md_file_paths(self):
-        return self.current_md_files
+        return self.current_md_files.copy()
 
 class Markdowns:
     dir_name = md_dir_name
@@ -54,39 +54,19 @@ class Markdowns:
         logger.debug("Getting all markdown file names for Markdowns class")
         self.file_collection = _FileCollection(self.dir_name)
 
-    def create_file(self, citation_dict, cited_links_lst=None):
-        if self.dir_name is None:
-            return
-        code = citation_dict["citation-code"]
-        file_path = self._get_file_path(code)
-        self.file_collection.record_created(file_path)
-        with open(file_path, "w", encoding=write_encoding) as f:
-            f.write(self.yaml_separator + self._get_yaml_frontmatter(citation_dict, cited_links_lst) + self.yaml_separator)
-        logger.progress(f"Created markdown file {code}.md")
-
-    def delete_unmatched_files(self, citation_codes_lst):
-        if self.dir_name is None or not delete_unmatched_citations:
-            return
-        for file in self.file_collection.get_current_md_file_paths():
-            code = file[:-3] # remove .md
-            if code not in citation_codes_lst:
-                file_path = self._get_file_path(code)
-                with open(file_path, "r", encoding=read_encoding) as f:
-                    self.file_collection.record_deleted(file_path, f.read())
-                logger.progress(f"Deleting markdown file {file_path.rsplit('/',1)[1]} since it is missing from the citations csv")
-                remove(file_path)
-
-    def update_file(self, citation_dict, cited_links_lst=None):
+    def create_or_update_file(self, citation_dict, cited_links_lst=None):
         if self.dir_name is None:
             return
         code = citation_dict["citation-code"]
         file_path = self._get_file_path(code)
         new_yaml_frontmatter = self._get_yaml_frontmatter(citation_dict, cited_links_lst)
-        if exists(file_path):
+        file_exists = exists(file_path)
+        if file_exists:
             with open(file_path, "r", encoding=read_encoding) as f:
                 file_content = f.read()
             content_lst = file_content.split(self.yaml_separator)
-            if content_lst[1] == new_yaml_frontmatter:
+            new_yaml_frontmatter = update_frontmatter(content_lst[1], new_yaml_frontmatter)
+            if new_yaml_frontmatter is None:
                 logger.debug(f"No changes detected in yaml frontmatter of {code} .md, no update made")
                 return
             self.file_collection.record_updated(file_path, file_content)
@@ -96,7 +76,23 @@ class Markdowns:
         content_lst[1] = new_yaml_frontmatter
         with open(file_path, "w", encoding=write_encoding) as f:
             f.write(self.yaml_separator.join(content_lst))
-        logger.progress(f"Updated markdown file {code}.md")
+        logger.progress(("Updated" if file_exists else "Created") + f" markdown file {code}.md")
+
+    def delete_unmatched_files(self, citation_codes_lst):
+        if self.dir_name is None or not delete_unmatched_citations:
+            return
+        lower_citation_codes_lst = [code.lower() for code in citation_codes_lst]
+        for file in self.file_collection.get_current_md_file_paths():
+            code = file[:-3] # remove .md
+            if code not in citation_codes_lst and code.lower() in lower_citation_codes_lst:
+                code_indx = lower_citation_codes_lst.index(code.lower())
+                logger.warning(f"The file {citation_codes_lst[code_indx]}.md exists, but the citation code is {code}. It is assumed that this code connects to this file, since many computers have case-insensitive file naming. If that is not the case, please rename the file.")
+            elif code not in citation_codes_lst:
+                file_path = self._get_file_path(code)
+                with open(file_path, "r", encoding=read_encoding) as f:
+                    self.file_collection.record_deleted(file_path, f.read())
+                logger.progress(f"Deleting markdown file {file_path.rsplit('/',1)[1]} since it is missing from the citations csv")
+                remove(file_path)
 
     def change_citation_code(self, old_code, new_code, cited_by_lst):
         if self.dir_name is None:

@@ -27,7 +27,7 @@ A command line tool that takes DOIs and ISBNs to query databases for citation de
 The package dependencies for this program are:
 
 ```bash
-pip install crossrefapi # installs crossref package for DOIs
+pip install crossrefapi # crossref package for DOIs
 pip install pylatexenc # OPTIONAL - for bibtex encoding
 ```
 
