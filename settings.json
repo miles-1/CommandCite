@@ -122,7 +122,7 @@
             ],
             "crossref": {
                 "title": "title.0@",
-                "author": "author.*.[family,given]",
+                "author": "author.*.[family,given]@",
                 "year": "published-print.date-parts.0.0|published-online.date-parts.0.0",
                 "month": "published-print.date-parts.0.1|published-online.date-parts.0.1",
                 "day": "published-print.date-parts.0@|published-online.date-parts.0@",
