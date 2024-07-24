@@ -100,7 +100,7 @@ class Markdowns:
         old_file_path, new_file_path = [self._get_file_path(code) for code in (old_code, new_code)]
         # rename file
         rename(old_file_path, new_file_path)
-        logger.progress(f"File {old_code}.md changed to {new_code}.md, and contents updated if necessary")
+        logger.progress(f"File {old_code}.md changed to {new_code}.md, and yaml frontmatter updated if necessary")
         # collect old content
         with open(new_file_path, "r", encoding=read_encoding) as f:
             old_content = f.read()
