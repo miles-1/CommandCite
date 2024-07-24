@@ -37,7 +37,7 @@
             "abstract"
         ],
         "user-defined_properties": {
-            "physical_copy": false,
+            "physical-copy": false,
             "processed": false,
             "tags": ["citation"]
         },
