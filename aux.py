@@ -247,8 +247,8 @@ def make_smart_title_case(string:str) -> str:
             words[i] = words[i].capitalize()
     return " ".join(words)
 
-# author name formatting function
-def format_names(names:list) -> str:
+# author name formatting functions
+def format_names_to_last_first(names:list) -> str:
     return array_separator.join(split_name(name) for name in names)
 
 def split_name(name:str) -> str:
@@ -259,6 +259,21 @@ def split_name(name:str) -> str:
     else:
         name_lst = list(reversed(name.rsplit(" ", 1)))
     return concat_separator.join(name_lst)
+
+def is_gt_x_percent_capitalized(s: str, x: float) -> bool:
+    if not s: return False
+    total_letters = sum(1 for c in s if c.isalpha())
+    if total_letters == 0: return False
+    capitalized_letters = sum(1 for c in s if c.isupper())
+    return (capitalized_letters / total_letters) > x
+
+def title_case_names(names:str) -> str:
+    array_separator.join(
+        concat_separator.join(
+            (name_frag.title() if is_gt_x_percent_capitalized(name_frag, .6) else name_frag)
+            for name_frag in name.split(concat_separator)
+        ) for name in names.split(array_separator)
+    )
 
 # isbn formatting function
 def format_isbn(isbn:str) -> str:

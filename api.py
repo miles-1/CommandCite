@@ -1,9 +1,12 @@
 from crossref.restful import Works, Etiquette
 from time import sleep
-from aux import logger, program_headers, get_data_by_address, get_date_part, \
-    format_title, format_isbn, format_names, format_base_citation_code, replace_special_characters, \
+from aux import logger, program_headers, \
+    get_data_by_address, get_date_part, \
+    format_title, format_isbn, format_names_to_last_first, title_case_names, \
+    format_base_citation_code, replace_special_characters, \
     openlibrary_url, googlebooks_url, \
-    missing_data_string, array_separator, concat_separator, citation_code_format, header_addresses, \
+    missing_data_string, array_separator, \
+    concat_separator, citation_code_format, header_addresses, \
     timeout, num_retries, retry_delay, \
     project_name, project_version, project_url, contact_email, \
     primary_isbn, secondary_isbn
@@ -139,11 +142,7 @@ class CrossRefWorks(_GenWorks):
         match header:
             case "author":
                 data = replace_special_characters(data)
-                return array_separator.join(
-                    concat_separator.join(
-                        name_frag.title() for name_frag in name.split(concat_separator)
-                    ) for name in data.split(array_separator)
-                )
+                return title_case_names(data)
             case "title":
                 return format_title(data)  
             case "day":
@@ -193,7 +192,7 @@ class OpenLibraryWorks(_ISBNWorks):
             case "title":
                 return format_title(data)  
             case "author":
-                return format_names(data)
+                return format_names_to_last_first(data)
             case "year" | "month" | "day":
                 if header == "year" and isinstance(data, int):
                     return data
@@ -220,7 +219,7 @@ class GoogleBooksWorks(_ISBNWorks):
             case "title":
                 return format_title(data.replace(concat_separator, ": "))
             case "author":
-                return format_names(data)
+                return format_names_to_last_first(data)
             case "year" | "month" | "day":
                 date_format = ("year", "month", "day")
                 date_lst = [int(num) for num in data.split("-")]

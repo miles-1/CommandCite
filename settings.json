@@ -21,7 +21,7 @@
         "make_md": true,
         "directory": "/Users/miles/Desktop/the_holy_writ/papers",
         "link_cited": true,
-        "delete_unmatched_citations": false,
+        "delete_unmatched_citations": true,
         "automate_pdf_link": {
             "doi": true,
             "isbn": false
