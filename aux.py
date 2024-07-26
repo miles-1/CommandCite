@@ -268,7 +268,7 @@ def is_gt_x_percent_capitalized(s: str, x: float) -> bool:
     return (capitalized_letters / total_letters) > x
 
 def title_case_names(names:str) -> str:
-    array_separator.join(
+    return array_separator.join(
         concat_separator.join(
             (name_frag.title() if is_gt_x_percent_capitalized(name_frag, .6) else name_frag)
             for name_frag in name.split(concat_separator)
