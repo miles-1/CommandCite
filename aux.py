@@ -432,6 +432,8 @@ def update_frontmatter(old_yml:str, new_yml:str) -> str|None:
     # get new properties only, ignore user-defined property defaults
     new_yml_dict_included_properties_only = {k: v for k, v in new_yml_dict.items() if k in included_properties}
     old_yml_dict.update(new_yml_dict_included_properties_only)
+    if link_cited and "citations" in new_yml_dict:
+        old_yml_dict["citations"] = new_yml_dict["citations"]
     # insert user-defined properties only if missing
     for prop in user_defined_properties:
         if prop not in old_yml_dict:

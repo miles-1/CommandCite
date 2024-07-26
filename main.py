@@ -86,7 +86,7 @@ if __name__ == "__main__":
                     md.create_or_update_file(citation_dict, csv.get_codes_cited_by_code(code))
                     code_lst = csv.get_codes_that_cite_code(code)
                     if code_lst is not None:
-                        for citing_code in csv.get_codes_that_cite_code(code):
+                        for citing_code in code_lst:
                             md.create_or_update_file(
                                 csv.get_entry(citing_code), 
                                 csv.get_codes_cited_by_code(citing_code)

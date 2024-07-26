@@ -138,7 +138,7 @@ class _EntryRow:
             code, id_num = row_dict["citation-code"], row_dict["doi"]
             if id_num in cited_dois:
                 code_lst.append(code)
-        return code_lst if len(code_lst) > 0 else None
+        return sorted(code_lst) if len(code_lst) > 0 else None
 
     def _add_citation_code_suffix(self, base_code, citation_dict, new_code=True):
         self.base_citation_code_count[base_code] += 1
