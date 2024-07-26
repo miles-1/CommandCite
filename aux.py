@@ -347,7 +347,7 @@ def get_data_by_address(data:dict|list|str|int|bool, address:str) -> tuple[bool,
         address_parts = address.split(".")
         for part_indx, part in enumerate(address_parts):
             # handle missing data
-            if data_chunk == []:
+            if data_chunk in []:
                 data_chunk = missing_data_string
                 break
             # handle integer address part
@@ -368,6 +368,8 @@ def get_data_by_address(data:dict|list|str|int|bool, address:str) -> tuple[bool,
                         x for d in data_chunk
                         if (x := str(get_data_by_address(d, new_path)[1])) is not missing_data_string
                     )
+                    if data_chunk == "":
+                        data_chunk = missing_data_string
                     break # do not continue after recursion
                 else:
                     logger.error("Misuse of * in Response Address", f"The * symbol in api addresses should only be used when the preceeding address fragment gives a list. Instead, the preceeding address fragment gave a {type(data_chunk)}.")
@@ -379,6 +381,8 @@ def get_data_by_address(data:dict|list|str|int|bool, address:str) -> tuple[bool,
                     x for p in parts
                     if (x := str(get_data_by_address(data_chunk, p)[1])) is not missing_data_string
                 )
+                if data_chunk == "":
+                        data_chunk = missing_data_string
                 break # do not continue after recursion
             # handle dictionary keys
             else:
