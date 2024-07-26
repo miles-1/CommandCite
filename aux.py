@@ -429,12 +429,22 @@ def make_md_link(string:str, pdf:bool=False) -> str:
 def update_frontmatter(old_yml:str, new_yml:str) -> str|None:
     old_yml_dict = convert_frontmatter_to_lines_dict(old_yml)
     new_yml_dict = convert_frontmatter_to_lines_dict(new_yml)
+    # get new properties only, ignore user-defined property defaults
     new_yml_dict_included_properties_only = {k: v for k, v in new_yml_dict.items() if k in included_properties}
     old_yml_dict.update(new_yml_dict_included_properties_only)
+    # insert user-defined properties only if missing
     for prop in user_defined_properties:
         if prop not in old_yml_dict:
             old_yml_dict[prop] = new_yml_dict[prop]
-    updated_old_yml = "\n".join(old_yml_dict.values()) + "\n"
+    # sort to match order
+    ordered_old_yml_dict = {}
+    for prop in included_properties + list(user_defined_properties.keys()):
+        if prop in old_yml_dict:
+            ordered_old_yml_dict[prop] = old_yml_dict[prop]
+            old_yml_dict.pop(prop)
+    ordered_old_yml_dict.update(old_yml_dict)
+    # make new frontmatter
+    updated_old_yml = "\n".join(ordered_old_yml_dict.values()) + "\n"
     return updated_old_yml if updated_old_yml != old_yml else None
 
 def convert_frontmatter_to_lines_dict(yml):

@@ -87,9 +87,10 @@ if __name__ == "__main__":
                     code_lst = csv.get_codes_that_cite_code(code)
                     if code_lst is not None:
                         for citing_code in csv.get_codes_that_cite_code(code):
-                            citing_dict = csv.get_entry(citing_code)
-                            cited_links_list = csv.get_codes_cited_by_code(citing_code)
-                            md.create_or_update_file(citing_dict, cited_links_list)
+                            md.create_or_update_file(
+                                csv.get_entry(citing_code), 
+                                csv.get_codes_cited_by_code(citing_code)
+                            )
                     # add bibliography entries
                     bibtex.create_or_update_citation(citation_dict)
                     hayagriva.create_or_update_citation(citation_dict)

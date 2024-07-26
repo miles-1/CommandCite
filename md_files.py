@@ -67,7 +67,7 @@ class Markdowns:
             content_lst = file_content.split(self.yaml_separator)
             new_yaml_frontmatter = update_frontmatter(content_lst[1], new_yaml_frontmatter)
             if new_yaml_frontmatter is None:
-                logger.debug(f"No changes detected in yaml frontmatter of {code} .md, no update made")
+                logger.debug(f"No changes detected in yaml frontmatter of {code}.md, no update made")
                 return
             self.file_collection.record_updated(file_path, file_content)
         else:
