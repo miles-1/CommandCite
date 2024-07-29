@@ -189,6 +189,7 @@ def remove_html_tags(string:str) -> str:
 def replace_special_characters(string:str) -> str:
     """Replaces special characters, HTML tags, and HTML encoded characters in a string"""
     string = remove_html_tags(string)
+    string = re.sub(r"\s{2,}", " ", string)
     replacement_dict = {
         "&amp;": "&",
         "&quot;": "\"",
@@ -199,6 +200,7 @@ def replace_special_characters(string:str) -> str:
         "‐": "-",
         "–": "-",
         "—": "-",
+        "‘": "'",
         "’": "'",
         "\n": "",
         "∼": "~",
