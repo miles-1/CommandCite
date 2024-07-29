@@ -148,11 +148,10 @@ class CrossRefWorks(_GenWorks):
             case "day":
                 return data[2] if len(data) == 3 else missing_data_string
             case "abstract":
-                data = data\
+                data = data \
                     .replace("<jats:title>Abstract</jats:title>", "") \
-                    .replace("<jats:title>Significance</jats:title>", "",)
-                data = replace_special_characters(data)
-                return data.strip()
+                    .replace("<jats:title>Significance</jats:title>", "")
+                return replace_special_characters(data)
             case "journal":
                 return replace_special_characters(data)
             case "type":

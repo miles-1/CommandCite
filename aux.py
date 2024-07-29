@@ -208,7 +208,7 @@ def replace_special_characters(string:str) -> str:
     }
     for character, replacement in replacement_dict.items():
         string = string.replace(character, replacement)
-    return string
+    return string.strip()
 
 def make_smart_title_case(string:str) -> str:
     """Gives title case for string besides ignored words, AND replaces special characters"""
@@ -438,6 +438,8 @@ def update_frontmatter(old_yml:str, new_yml:str) -> str|None:
     # get new properties only, ignore user-defined property defaults
     new_yml_dict_included_properties_only = {k: v for k, v in new_yml_dict.items() if k in included_properties}
     old_yml_dict.update(new_yml_dict_included_properties_only)
+    if (automate_pdf_link_doi or automate_pdf_link_isbn) and "pdf-link" in new_yml_dict:
+        old_yml_dict["pdf-link"] = new_yml_dict["pdf-link"]
     if link_cited and "citations" in new_yml_dict:
         old_yml_dict["citations"] = new_yml_dict["citations"]
     # insert user-defined properties only if missing
@@ -446,7 +448,7 @@ def update_frontmatter(old_yml:str, new_yml:str) -> str|None:
             old_yml_dict[prop] = new_yml_dict[prop]
     # sort to match order
     ordered_old_yml_dict = {}
-    for prop in included_properties + list(user_defined_properties.keys()):
+    for prop in included_properties + ["pdf-link"] + list(user_defined_properties.keys()) + ["citations"]:
         if prop in old_yml_dict:
             ordered_old_yml_dict[prop] = old_yml_dict[prop]
             old_yml_dict.pop(prop)
