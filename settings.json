@@ -6,7 +6,7 @@
     },
 
     "citations_csv": {
-        "directory": ".",
+        "directory": "/Users/miles/Desktop/the_holy_writ/papers/_other_files",
         "filename": "citations",
         "missing_data_string": "NA",
         "array_separator": "|",
