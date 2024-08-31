@@ -28,7 +28,9 @@ if __name__ == "__main__":
                 # get old citation dict
                 citation_dict = csv.get_entry(code)
                 # get new citation dict
-                if entries_that_need_updating is not None and code in entries_that_need_updating:
+                if entries_that_need_updating is not None \
+                    and code in entries_that_need_updating \
+                    and (has_data(citation_dict["doi"]) or has_data(citation_dict["isbn"])):
                     new_dict_requested = True
                     if has_data(citation_dict["doi"]):
                         id_num = citation_dict["doi"]
@@ -43,7 +45,7 @@ if __name__ == "__main__":
                 # update csv
                 if new_dict_requested and new_citation_dict is not None:
                     csv.update_entry(code, new_citation_dict)
-                elif new_dict_requested and new_citation_dict is None:
+                elif (new_dict_requested and new_citation_dict is None) or not new_dict_requested:
                     csv.fill_missing_cells(code)
                 new_citation_dict = csv.get_entry(code)
                 # update mds
