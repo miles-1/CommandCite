@@ -1,6 +1,6 @@
 from aux import logger, md_dir_name, \
     array_separator, concat_separator, \
-    link_cited, delete_unmatched_citations, automate_pdf_link_doi, automate_pdf_link_isbn, included_properties, user_defined_properties, \
+    link_cited, delete_unmatched_citations, automate_pdf_link_article, automate_pdf_link_book, included_properties, user_defined_properties, \
     read_encoding, write_encoding, \
     has_data, make_md_link, update_frontmatter
 from os import remove, listdir, rename
@@ -106,7 +106,7 @@ class Markdowns:
             old_content = f.read()
             self.file_collection.record_code_changed(new_file_path, old_file_path, old_content)
         # update pdf link in yaml frontmatter if necessary
-        if (automate_pdf_link_doi or automate_pdf_link_isbn) and make_md_link(old_code, pdf=True) in old_content:
+        if (automate_pdf_link_article or automate_pdf_link_book) and make_md_link(old_code, pdf=True) in old_content:
             with open(new_file_path, "w", encoding=write_encoding) as f:
                 new_content = old_content.replace(make_md_link(old_code, pdf=True), make_md_link(new_code, pdf=True))
                 f.write(new_content)
@@ -151,8 +151,8 @@ class Markdowns:
                     value = "\"" + value + "\""
                 yaml_text += get_detail(prop, value)
         # add link to pdf
-        if (automate_pdf_link_doi and citation_dict["type"] == "article") or \
-            (automate_pdf_link_isbn and has_data(citation_dict["isbn"])):
+        if (automate_pdf_link_article and citation_dict["type"] == "article") or \
+            (automate_pdf_link_book and citation_dict["type"] == "book"):
             yaml_text += get_detail("pdf-link", make_md_link(citation_dict['citation-code'], pdf=True))
         # add user-defined properties
         for prop, value in user_defined_properties.items():

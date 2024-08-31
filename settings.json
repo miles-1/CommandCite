@@ -23,8 +23,8 @@
         "link_cited": true,
         "delete_unmatched_citations": true,
         "automate_pdf_link": {
-            "doi": true,
-            "isbn": false
+            "article": true,
+            "book": false
         },
         "included_properties": [
             "title",

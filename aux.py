@@ -97,8 +97,8 @@ try:
     md_dir_name = _get_path(settings["markdown"], check_field="make_md")
     link_cited = settings["markdown"]["link_cited"]
     delete_unmatched_citations = settings["markdown"]["delete_unmatched_citations"]
-    automate_pdf_link_doi = settings["markdown"]["automate_pdf_link"]["doi"]
-    automate_pdf_link_isbn = settings["markdown"]["automate_pdf_link"]["isbn"]
+    automate_pdf_link_article = settings["markdown"]["automate_pdf_link"]["article"]
+    automate_pdf_link_book = settings["markdown"]["automate_pdf_link"]["book"]
     included_properties = settings["markdown"]["included_properties"]
     user_defined_properties = settings["markdown"]["user-defined_properties"]
     # bibliography settings
@@ -438,7 +438,7 @@ def update_frontmatter(old_yml:str, new_yml:str) -> str|None:
     # get new properties only, ignore user-defined property defaults
     new_yml_dict_included_properties_only = {k: v for k, v in new_yml_dict.items() if k in included_properties}
     old_yml_dict.update(new_yml_dict_included_properties_only)
-    if (automate_pdf_link_doi or automate_pdf_link_isbn) and "pdf-link" in new_yml_dict:
+    if (automate_pdf_link_article or automate_pdf_link_book) and "pdf-link" in new_yml_dict:
         old_yml_dict["pdf-link"] = new_yml_dict["pdf-link"]
     if link_cited and "citations" in new_yml_dict:
         old_yml_dict["citations"] = new_yml_dict["citations"]
