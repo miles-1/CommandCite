@@ -151,7 +151,7 @@ class Markdowns:
                     value = "\"" + value + "\""
                 yaml_text += get_detail(prop, value)
         # add link to pdf
-        if (automate_pdf_link_doi and has_data(citation_dict["doi"])) or \
+        if (automate_pdf_link_doi and citation_dict["type"] == "article") or \
             (automate_pdf_link_isbn and has_data(citation_dict["isbn"])):
             yaml_text += get_detail("pdf-link", make_md_link(citation_dict['citation-code'], pdf=True))
         # add user-defined properties
